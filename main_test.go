@@ -1,0 +1,80 @@
+package main
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
+
+func TestRunVersion(t *testing.T) {
+	for _, arg := range []string{"-v", "--version"} {
+		var stdout, stderr bytes.Buffer
+		code := run([]string{arg}, &stdout, &stderr)
+		if code != 0 {
+			t.Errorf("run(%q) exited with %d, want 0", arg, code)
+		}
+		if !strings.Contains(stdout.String(), version) {
+			t.Errorf("run(%q) stdout = %q, want version %q", arg, stdout.String(), version)
+		}
+	}
+}
+
+func TestRunHelp(t *testing.T) {
+	for _, arg := range []string{"-h", "--help"} {
+		var stdout, stderr bytes.Buffer
+		code := run([]string{arg}, &stdout, &stderr)
+		if code != 0 {
+			t.Errorf("run(%q) exited with %d, want 0", arg, code)
+		}
+		if !strings.Contains(stdout.String(), "Usage:") {
+			t.Errorf("run(%q) stdout = %q, want usage info", arg, stdout.String())
+		}
+	}
+}
+
+func TestRunLs(t *testing.T) {
+	testFile := "test_data/Workbench v1.0 (1985)(Commodore).adf"
+	tests := []struct {
+		args        []string
+		wantContain []string
+	}{
+		{
+			args:        []string{"ls", testFile},
+			wantContain: []string{"Clock", "c", "devs", "libs", "Capacity:", "Formatted:   880 KiB (901,120 bytes)", "Unformatted:   1 MB  (1,000,000 bytes)", "Free:    26.2%    462 sectors (236,544 bytes)", "In-use:  73.8%  1,298 sectors (664,576 bytes)", "Total:  100.0%  1,760 sectors (901,120 bytes)"},
+		},
+		{
+			args:        []string{"ls", "-l", testFile},
+			wantContain: []string{"-    15800", "d        0", "Clock", "devs/", "Capacity:", "Usage:"},
+		},
+	}
+	for _, tt := range tests {
+		var stdout, stderr bytes.Buffer
+		code := run(tt.args, &stdout, &stderr)
+		if code != 0 {
+			t.Errorf("run(%v) exited with %d, want 0 (stderr: %s)", tt.args, code, stderr.String())
+		}
+		for _, w := range tt.wantContain {
+			if !strings.Contains(stdout.String(), w) {
+				t.Errorf("run(%v) stdout missing %q; got:\n%s", tt.args, w, stdout.String())
+			}
+		}
+	}
+}
+
+func TestRunLsArgumentValidation(t *testing.T) {
+	tests := [][]string{
+		{"ls"},
+		{"ls", "-l"},
+		{"ls", "a.adf", "b.adf"},
+	}
+	for _, args := range tests {
+		var stdout, stderr bytes.Buffer
+		code := run(args, &stdout, &stderr)
+		if code != 1 {
+			t.Errorf("run(%v) exited with %d, want 1", args, code)
+		}
+		if !strings.Contains(stderr.String(), "rdt ls [-l] <file>") {
+			t.Errorf("run(%v) stderr = %q, want ls help output", args, stderr.String())
+		}
+	}
+}

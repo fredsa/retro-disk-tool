@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
 
 const (
@@ -112,7 +114,7 @@ func (fs *FileSystem) ListRoot() ([]Entry, error) {
 			if entryPType == TypeHeader {
 				nameLen := int(blk[432])
 				if nameLen > 0 && nameLen <= 30 && 433+nameLen <= 512 {
-					name := string(blk[433 : 433+nameLen])
+					name := util.EscapeNonPrintable(blk[433 : 433+nameLen])
 					days := binary.BigEndian.Uint32(blk[420:424])
 					mins := binary.BigEndian.Uint32(blk[424:428])
 					ticks := binary.BigEndian.Uint32(blk[428:432])
@@ -211,4 +213,47 @@ func (fs *FileSystem) DiskUsage() (*DiskUsage, error) {
 		FormattedCapacity:   formattedCapacity,
 		UnformattedCapacity: unformattedCapacity,
 	}, nil
+}
+
+func (fs *FileSystem) Dump(w io.Writer) error {
+	dosType := string(fs.data[0:4])
+	fmt.Fprintf(w, "Amiga ADF Disk Image Dump\n")
+	fmt.Fprintf(w, "  DOS Type: %q (0x%08x)\n", dosType, binary.BigEndian.Uint32(fs.data[0:4]))
+	fmt.Fprintf(w, "  Total size: %d bytes (%d sectors of %d bytes)\n", len(fs.data), TotalSectors, SectorSize)
+
+	rootOffset := RootSector * SectorSize
+	rootBlock := fs.data[rootOffset : rootOffset+SectorSize]
+	nameLen := int(rootBlock[432])
+	diskName := ""
+	if nameLen > 0 && nameLen <= 30 {
+		diskName = util.EscapeNonPrintable(rootBlock[433 : 433+nameLen])
+	}
+	fmt.Fprintf(w, "  Disk Name: %q\n", diskName)
+	fmt.Fprintf(w, "  Root Block: sector %d\n", RootSector)
+
+	bmFlag := int32(binary.BigEndian.Uint32(rootBlock[312:316]))
+	fmt.Fprintf(w, "  Bitmap Flag: %d (valid=%v)\n", bmFlag, bmFlag == -1)
+
+	usage, err := fs.DiskUsage()
+	if err == nil {
+		fmt.Fprintf(w, "  Formatted Capacity: %d bytes (880 KiB)\n", usage.FormattedCapacity)
+		fmt.Fprintf(w, "  Unformatted Capacity: %d bytes (1 MB)\n", usage.UnformattedCapacity)
+		fmt.Fprintf(w, "  In-use sectors: %d, Free sectors: %d, Total sectors: %d\n",
+			usage.InUseSectors, usage.FreeSectors, usage.TotalSectors)
+	}
+
+	entries, err := fs.ListRoot()
+	if err == nil {
+		fmt.Fprintf(w, "  Root Entries (%d):\n", len(entries))
+		for _, e := range entries {
+			typeStr := "FILE"
+			if e.IsDir {
+				typeStr = "DIR "
+			}
+			fmt.Fprintf(w, "    [%s] %-25s %8d bytes  %s\n",
+				typeStr, e.Name, e.Size, e.ModTime.Format("2006-01-02 15:04:05"))
+		}
+	}
+
+	return nil
 }

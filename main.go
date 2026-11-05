@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
-	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/adf"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/disk"
 )
 
 const version = "0.1.0"
@@ -18,11 +19,17 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  rdt -v | --version")
 	fmt.Fprintln(w, "  rdt -h | --help")
 	fmt.Fprintln(w, "  rdt ls [-l] <file>")
+	fmt.Fprintln(w, "  rdt dump <file>")
 }
 
 func printLsHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  rdt ls [-l] <file>")
+}
+
+func printDumpHelp(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  rdt dump <file>")
 }
 
 func formatWithCommas[T int | int64 | uint | uint32 | uint64](n T) string {
@@ -36,6 +43,13 @@ func formatWithCommas[T int | int64 | uint | uint32 | uint64](n T) string {
 		out = append(out, byte(c))
 	}
 	return string(out)
+}
+
+func formatFilename(name string) string {
+	if strings.Contains(name, " ") {
+		return fmt.Sprintf("%q", name)
+	}
+	return name
 }
 
 func runLs(args []string, stdout, stderr io.Writer) int {
@@ -67,13 +81,13 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	fs, err := adf.Open(f, fi.Size())
+	reader, err := disk.Open(diskPath, f, fi.Size())
 	if err != nil {
 		fmt.Fprintf(stderr, "Error reading disk image %q: %v\n", diskPath, err)
 		return 1
 	}
 
-	entries, err := fs.ListRoot()
+	entries, err := reader.List()
 	if err != nil {
 		fmt.Fprintf(stderr, "Error listing files in %q: %v\n", diskPath, err)
 		return 1
@@ -87,34 +101,82 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 				typeIndicator = "d"
 				displayName += "/"
 			}
-			timeStr := entry.ModTime.Format("2006-01-02 15:04:05")
+			displayName = formatFilename(displayName)
+			timeStr := "                   "
+			if entry.ModTime != nil {
+				timeStr = entry.ModTime.Format("2006-01-02 15:04:05")
+			}
 			fmt.Fprintf(stdout, "%s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
 		} else {
-			fmt.Fprintln(stdout, entry.Name)
+			fmt.Fprintln(stdout, formatFilename(entry.Name))
 		}
 	}
 
-	usage, err := fs.DiskUsage()
+	usage, err := reader.Usage()
 	if err != nil {
 		fmt.Fprintf(stderr, "Warning: unable to calculate disk usage: %v\n", err)
 		return 0
 	}
 
-	inUsePct := (float64(usage.InUseSectors) / float64(usage.TotalSectors)) * 100.0
-	freePct := (float64(usage.FreeSectors) / float64(usage.TotalSectors)) * 100.0
+	if usage != nil && usage.HasUsage {
+		inUsePct := (float64(usage.InUseSectors) / float64(usage.TotalSectors)) * 100.0
+		freePct := (float64(usage.FreeSectors) / float64(usage.TotalSectors)) * 100.0
 
-	fmt.Fprintln(stdout)
-	fmt.Fprintf(stdout, "Capacity:\n")
-	fmt.Fprintf(stdout, "  Formatted:   %3d KiB (%s bytes)\n", 880, formatWithCommas(usage.FormattedCapacity))
-	fmt.Fprintf(stdout, "  Unformatted: %3d MB  (%s bytes)\n", 1, formatWithCommas(usage.UnformattedCapacity))
-	fmt.Fprintln(stdout)
-	fmt.Fprintf(stdout, "Usage:\n")
-	fmt.Fprintf(stdout, "  In-use: %5.1f%% %6s sectors (%s bytes)\n",
-		inUsePct, formatWithCommas(usage.InUseSectors), formatWithCommas(usage.InUseBytes))
-	fmt.Fprintf(stdout, "  Free:   %5.1f%% %6s sectors (%s bytes)\n",
-		freePct, formatWithCommas(usage.FreeSectors), formatWithCommas(usage.FreeBytes))
-	fmt.Fprintf(stdout, "  Total:  %5.1f%% %6s sectors (%s bytes)\n",
-		100.0, formatWithCommas(usage.TotalSectors), formatWithCommas(usage.TotalBytes))
+		fmt.Fprintln(stdout)
+		fmt.Fprintf(stdout, "Capacity:\n")
+		fmt.Fprintf(stdout, "  Formatted:   %7s (%s bytes)\n", usage.FormattedDesc, formatWithCommas(usage.FormattedCapacity))
+		fmt.Fprintf(stdout, "  Unformatted: %7s (%s bytes)\n", usage.UnformattedDesc, formatWithCommas(usage.UnformattedCapacity))
+		fmt.Fprintln(stdout)
+		fmt.Fprintf(stdout, "Usage:\n")
+		fmt.Fprintf(stdout, "  In-use: %5.1f%% %6s sectors (%s bytes)\n",
+			inUsePct, formatWithCommas(usage.InUseSectors), formatWithCommas(usage.InUseBytes))
+		fmt.Fprintf(stdout, "  Free:   %5.1f%% %6s sectors (%s bytes)\n",
+			freePct, formatWithCommas(usage.FreeSectors), formatWithCommas(usage.FreeBytes))
+		fmt.Fprintf(stdout, "  Total:  %5.1f%% %6s sectors (%s bytes)\n",
+			100.0, formatWithCommas(usage.TotalSectors), formatWithCommas(usage.TotalBytes))
+	}
+
+	return 0
+}
+
+func runDump(args []string, stdout, stderr io.Writer) int {
+	dumpFlags := flag.NewFlagSet("dump", flag.ContinueOnError)
+	dumpFlags.SetOutput(stderr)
+	dumpFlags.Usage = func() {
+		printDumpHelp(stderr)
+	}
+	if err := dumpFlags.Parse(args); err != nil {
+		return 1
+	}
+	if dumpFlags.NArg() != 1 {
+		printDumpHelp(stderr)
+		return 1
+	}
+
+	diskPath := dumpFlags.Arg(0)
+	f, err := os.Open(diskPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error opening file %q: %v\n", diskPath, err)
+		return 1
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		fmt.Fprintf(stderr, "Error getting file info for %q: %v\n", diskPath, err)
+		return 1
+	}
+
+	reader, err := disk.Open(diskPath, f, fi.Size())
+	if err != nil {
+		fmt.Fprintf(stderr, "Error inspecting %q: %v\n", diskPath, err)
+		return 1
+	}
+
+	if err := reader.Dump(stdout); err != nil {
+		fmt.Fprintf(stderr, "Error dumping %q: %v\n", diskPath, err)
+		return 1
+	}
 
 	return 0
 }
@@ -134,6 +196,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "ls":
 		return runLs(args[1:], stdout, stderr)
+	case "dump":
+		return runDump(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Unknown option or command: %s\n\n", args[0])
 		printHelp(stderr)

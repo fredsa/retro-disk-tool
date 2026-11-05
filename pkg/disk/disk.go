@@ -27,13 +27,22 @@ type Usage struct {
 	TotalSectors        int
 	InUseSectors        int
 	FreeSectors         int
+	BAMSectors          int // System / BAM sectors (e.g. 19 sectors on C64 Track 18)
 	TotalBytes          int64
 	InUseBytes          int64
 	FreeBytes           int64
+	BAMBytes            int64
 	HasUsage            bool // false for non-disk single files like PRG / CRT
 }
 
+type DiskHeader struct {
+	Name    string
+	ID      string
+	DOSType string
+}
+
 type Reader interface {
+	Header() *DiskHeader
 	List() ([]Entry, error)
 	Usage() (*Usage, error)
 	Dump(w io.Writer) error
@@ -73,6 +82,16 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 
 type adfAdapter struct {
 	fs *adf.FileSystem
+}
+
+func (a *adfAdapter) Header() *DiskHeader {
+	name := a.fs.DiskName()
+	if name == "" {
+		return nil
+	}
+	return &DiskHeader{
+		Name: name,
+	}
 }
 
 func (a *adfAdapter) List() ([]Entry, error) {
@@ -122,6 +141,18 @@ type d64Adapter struct {
 	d *c64.D64Disk
 }
 
+func (a *d64Adapter) Header() *DiskHeader {
+	h := a.d.Header()
+	if h == nil {
+		return nil
+	}
+	return &DiskHeader{
+		Name:    h.Name,
+		ID:      h.ID,
+		DOSType: h.DOSType,
+	}
+}
+
 func (a *d64Adapter) List() ([]Entry, error) {
 	compat, err := a.d.List()
 	if err != nil {
@@ -153,9 +184,11 @@ func (a *d64Adapter) Usage() (*Usage, error) {
 		TotalSectors:        u.TotalSectors,
 		InUseSectors:        u.InUseSectors,
 		FreeSectors:         u.FreeSectors,
+		BAMSectors:          u.BAMSectors,
 		TotalBytes:          u.TotalBytes,
 		InUseBytes:          u.InUseBytes,
 		FreeBytes:           u.FreeBytes,
+		BAMBytes:            u.BAMBytes,
 		HasUsage:            u.HasUsage,
 	}, nil
 }
@@ -166,6 +199,10 @@ func (a *d64Adapter) Dump(w io.Writer) error {
 
 type prgAdapter struct {
 	p *c64.PRGFile
+}
+
+func (a *prgAdapter) Header() *DiskHeader {
+	return nil
 }
 
 func (a *prgAdapter) List() ([]Entry, error) {
@@ -201,6 +238,10 @@ func (a *prgAdapter) Dump(w io.Writer) error {
 
 type crtAdapter struct {
 	c *c64.CRTFile
+}
+
+func (a *crtAdapter) Header() *DiskHeader {
+	return nil
 }
 
 func (a *crtAdapter) List() ([]Entry, error) {

@@ -93,6 +93,20 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	header := reader.Header()
+	if header != nil {
+		nameStr := formatFilename(header.Name)
+		if header.ID != "" || header.DOSType != "" {
+			if header.Name == "" {
+				nameStr = `""`
+			}
+			fmt.Fprintf(stdout, "%s %s,%s\n", nameStr, header.ID, header.DOSType)
+		} else if header.Name != "" {
+			fmt.Fprintln(stdout, nameStr)
+		}
+		fmt.Fprintln(stdout)
+	}
+
 	for _, entry := range entries {
 		if *longFlag {
 			typeIndicator := "-"
@@ -128,6 +142,11 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  Unformatted: %7s (%s bytes)\n", usage.UnformattedDesc, formatWithCommas(usage.UnformattedCapacity))
 		fmt.Fprintln(stdout)
 		fmt.Fprintf(stdout, "Usage:\n")
+		if usage.BAMSectors > 0 {
+			bamPct := (float64(usage.BAMSectors) / float64(usage.TotalSectors)) * 100.0
+			fmt.Fprintf(stdout, "  BAM:    %5.1f%% %6s sectors (%s bytes)\n",
+				bamPct, formatWithCommas(usage.BAMSectors), formatWithCommas(usage.BAMBytes))
+		}
 		fmt.Fprintf(stdout, "  In-use: %5.1f%% %6s sectors (%s bytes)\n",
 			inUsePct, formatWithCommas(usage.InUseSectors), formatWithCommas(usage.InUseBytes))
 		fmt.Fprintf(stdout, "  Free:   %5.1f%% %6s sectors (%s bytes)\n",

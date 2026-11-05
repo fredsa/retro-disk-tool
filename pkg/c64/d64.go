@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+type DiskHeaderInfo struct {
+	Name    string
+	ID      string
+	DOSType string
+}
+
+func (d *D64Disk) Header() *DiskHeaderInfo {
+	bamOffset, err := getSectorOffset(18, 0)
+	if err != nil {
+		return nil
+	}
+	bam := d.data[bamOffset : bamOffset+256]
+
+	diskNameRaw := bam[0x90 : 0x90+16]
+	nameEnd := 16
+	for nameEnd > 0 && diskNameRaw[nameEnd-1] == 0xa0 {
+		nameEnd--
+	}
+	diskName := DecodeBytes(diskNameRaw[:nameEnd])
+	diskID := DecodeBytes(bam[0xa2:0xa4])
+	dosType := DecodeBytes(bam[0xa5:0xa7])
+
+	return &DiskHeaderInfo{
+		Name:    diskName,
+		ID:      diskID,
+		DOSType: dosType,
+	}
+}
+
 type DiskEntry struct {
 	Name    string
 	Type    string
@@ -72,9 +101,11 @@ type DiskUsageInfo struct {
 	TotalSectors        int
 	InUseSectors        int
 	FreeSectors         int
+	BAMSectors          int
 	TotalBytes          int64
 	InUseBytes          int64
 	FreeBytes           int64
+	BAMBytes            int64
 	HasUsage            bool
 }
 
@@ -88,18 +119,24 @@ func (d *D64Disk) Usage() (*DiskUsageInfo, error) {
 
 	freeSectors := 0
 	totalSectors := 683 // Tracks 1-35
-	// Track 18 sectors (19 sectors) are reserved for directory & BAM
-	// Count free sectors from BAM entries for tracks 1-35
+	// Count free sectors from BAM entries for tracks 1-35 excluding Track 18.
 	for t := 1; t <= 35; t++ {
+		if t == 18 {
+			continue
+		}
 		offset := 4 * t
 		freeInTrack := int(bam[offset])
 		freeSectors += freeInTrack
 	}
 
-	inUseSectors := totalSectors - freeSectors
+	// Track 18 has 19 reserved sectors for BAM & directory
+	bamSectors := 19
+	// In-use user sectors:
+	inUseSectors := (totalSectors - bamSectors) - freeSectors
 	totalBytes := int64(totalSectors) * 256
 	inUseBytes := int64(inUseSectors) * 256
 	freeBytes := int64(freeSectors) * 256
+	bamBytes := int64(bamSectors) * 256
 
 	// 1541 single-sided 5.25" floppy:
 	// Formatted capacity: 170 KiB (174,848 bytes / ~170.75 KiB)
@@ -113,9 +150,11 @@ func (d *D64Disk) Usage() (*DiskUsageInfo, error) {
 		TotalSectors:        totalSectors,
 		InUseSectors:        inUseSectors,
 		FreeSectors:         freeSectors,
+		BAMSectors:          bamSectors,
 		TotalBytes:          totalBytes,
 		InUseBytes:          inUseBytes,
 		FreeBytes:           freeBytes,
+		BAMBytes:            bamBytes,
 		HasUsage:            true,
 	}, nil
 }

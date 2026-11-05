@@ -152,6 +152,16 @@ func (fs *FileSystem) ListRoot() ([]Entry, error) {
 	return entries, nil
 }
 
+func (fs *FileSystem) DiskName() string {
+	rootOffset := RootSector * SectorSize
+	rootBlock := fs.data[rootOffset : rootOffset+SectorSize]
+	nameLen := int(rootBlock[432])
+	if nameLen > 0 && nameLen <= 30 {
+		return util.EscapeNonPrintable(rootBlock[433 : 433+nameLen])
+	}
+	return ""
+}
+
 func (fs *FileSystem) DiskUsage() (*DiskUsage, error) {
 	rootOffset := RootSector * SectorSize
 	rootBlock := fs.data[rootOffset : rootOffset+SectorSize]

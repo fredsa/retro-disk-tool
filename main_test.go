@@ -48,7 +48,11 @@ func TestRunLs(t *testing.T) {
 		},
 		{
 			args:        []string{"ls", "test_data/JeepersCreepersPlus1-UNK.d64"},
-			wantContain: []string{"JEEP.CREEPERS+", "170 KiB (174,848 bytes)", "250 KB (250,000 bytes)", "Free:    84.9%    580 sectors"},
+			wantContain: []string{"JEEP.CREEPERS+", "170 KiB (174,848 bytes)", "250 KB (250,000 bytes)", "BAM:      2.8%     19 sectors", "Free:    82.4%    563 sectors"},
+		},
+		{
+			args:        []string{"ls", "test_data/och0528v35.d64"},
+			wantContain: []string{"\"OCH0528 V3.5 AT\" ST,2A", "MENU", "\"DISK MASTER\"", "BAM:      2.8%     19 sectors", "147 sectors", "517 sectors"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/JeepersCreepersPlus1-UNK.d64"},

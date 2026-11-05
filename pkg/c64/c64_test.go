@@ -52,11 +52,70 @@ func TestD64(t *testing.T) {
 	if usage.TotalSectors != 683 {
 		t.Errorf("TotalSectors = %d, want 683", usage.TotalSectors)
 	}
-	if usage.FreeSectors != 580 {
-		t.Errorf("FreeSectors = %d, want 580", usage.FreeSectors)
+	if usage.FreeSectors != 563 {
+		t.Errorf("FreeSectors = %d, want 563", usage.FreeSectors)
 	}
-	if usage.InUseSectors != 103 {
-		t.Errorf("InUseSectors = %d, want 103", usage.InUseSectors)
+	if usage.BAMSectors != 19 {
+		t.Errorf("BAMSectors = %d, want 19", usage.BAMSectors)
+	}
+	if usage.InUseSectors != 101 {
+		t.Errorf("InUseSectors = %d, want 101", usage.InUseSectors)
+	}
+}
+
+func TestD64Header(t *testing.T) {
+	const d64Path = "../../test_data/och0528v35.d64"
+	f, err := os.Open(d64Path)
+	if err != nil {
+		t.Fatalf("failed to open d64: %v", err)
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		t.Fatalf("failed to stat d64: %v", err)
+	}
+
+	disk, err := c64.OpenD64(f, fi.Size())
+	if err != nil {
+		t.Fatalf("OpenD64 failed: %v", err)
+	}
+
+	hdr := disk.Header()
+	if hdr == nil {
+		t.Fatalf("disk.Header() returned nil")
+	}
+	if hdr.Name != "OCH0528 V3.5 AT" {
+		t.Errorf("hdr.Name = %q, want %q", hdr.Name, "OCH0528 V3.5 AT")
+	}
+	if hdr.ID != "ST" {
+		t.Errorf("hdr.ID = %q, want %q", hdr.ID, "ST")
+	}
+	if hdr.DOSType != "2A" {
+		t.Errorf("hdr.DOSType = %q, want %q", hdr.DOSType, "2A")
+	}
+
+	entries, err := disk.ReadDirectory()
+	if err != nil {
+		t.Fatalf("ReadDirectory failed: %v", err)
+	}
+	if len(entries) != 7 {
+		t.Fatalf("expected 7 entries, got %d", len(entries))
+	}
+
+	usage, err := disk.Usage()
+	if err != nil {
+		t.Fatalf("Usage failed: %v", err)
+	}
+	// On och0528v35.d64: 517 free user blocks (683 total, 166 in-use including directory track 18)
+	if usage.FreeSectors != 517 {
+		t.Errorf("FreeSectors = %d, want 517", usage.FreeSectors)
+	}
+	if usage.BAMSectors != 19 {
+		t.Errorf("BAMSectors = %d, want 19", usage.BAMSectors)
+	}
+	if usage.InUseSectors != 147 {
+		t.Errorf("InUseSectors = %d, want 147", usage.InUseSectors)
 	}
 }
 

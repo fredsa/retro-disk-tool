@@ -81,6 +81,31 @@ func TestRunLs(t *testing.T) {
 	}
 }
 
+func TestRunCat(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"cat", "test_data/och0528v35.d64", "MENU"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(cat och0528v35.d64 MENU) returned %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+	if stdout.Len() != 95 {
+		t.Errorf("stdout len = %d, want 95", stdout.Len())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"cat", "test_data/och0528v35.d64", "nonexistent"}, &stdout, &stderr)
+	if code != 1 {
+		t.Errorf("run(cat nonexistent) returned %d, want 1", code)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"cat", "test_data/och0528v35.d64"}, &stdout, &stderr)
+	if code != 1 {
+		t.Errorf("run(cat without path) returned %d, want 1", code)
+	}
+}
+
 func TestRunDump(t *testing.T) {
 	tests := []struct {
 		file        string

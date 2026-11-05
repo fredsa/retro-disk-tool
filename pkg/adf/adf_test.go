@@ -91,4 +91,12 @@ func TestOpenAndListRoot(t *testing.T) {
 	if usage.UnformattedCapacity != 1000000 {
 		t.Errorf("usage.UnformattedCapacity = %d, want 1000000", usage.UnformattedCapacity)
 	}
+
+	clockContent, err := fs.ReadFile("Clock")
+	if err != nil {
+		t.Fatalf("fs.ReadFile(Clock) failed: %v", err)
+	}
+	if len(clockContent) != 15800 {
+		t.Errorf("len(clockContent) = %d, want 15800", len(clockContent))
+	}
 }

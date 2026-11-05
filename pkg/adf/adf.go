@@ -152,6 +152,99 @@ func (fs *FileSystem) ListRoot() ([]Entry, error) {
 	return entries, nil
 }
 
+func (fs *FileSystem) ReadFile(targetName string) ([]byte, error) {
+	rootOffset := RootSector * SectorSize
+	rootBlock := fs.data[rootOffset : rootOffset+SectorSize]
+
+	pType := binary.BigEndian.Uint32(rootBlock[0:4])
+	secType := int32(binary.BigEndian.Uint32(rootBlock[508:512]))
+	if pType != TypeHeader || secType != SecTypeRoot {
+		return nil, fmt.Errorf("invalid root block: type=%d, secType=%d", pType, secType)
+	}
+
+	htSize := binary.BigEndian.Uint32(rootBlock[12:16])
+	if htSize == 0 || htSize > 128 {
+		htSize = 72
+	}
+
+	targetLower := strings.ToLower(targetName)
+	visited := make(map[uint32]bool)
+
+	for i := uint32(0); i < htSize; i++ {
+		sector := binary.BigEndian.Uint32(rootBlock[24+i*4 : 24+(i+1)*4])
+		for sector != 0 {
+			if visited[sector] {
+				break
+			}
+			visited[sector] = true
+
+			if int(sector)*SectorSize+SectorSize > len(fs.data) {
+				break
+			}
+
+			blk := fs.data[sector*SectorSize : (sector+1)*SectorSize]
+			entryPType := binary.BigEndian.Uint32(blk[0:4])
+			entrySecType := int32(binary.BigEndian.Uint32(blk[508:512]))
+
+			if entryPType == TypeHeader {
+				nameLen := int(blk[432])
+				if nameLen > 0 && nameLen <= 30 && 433+nameLen <= 512 {
+					name := util.EscapeNonPrintable(blk[433 : 433+nameLen])
+					if strings.ToLower(name) == targetLower {
+						if entrySecType == SecTypeDir {
+							return nil, fmt.Errorf("%q is a directory, not a file", targetName)
+						}
+						if entrySecType != SecTypeFile {
+							return nil, fmt.Errorf("%q is not a regular file", targetName)
+						}
+
+						fileSize := int(binary.BigEndian.Uint32(blk[324:328]))
+						firstData := binary.BigEndian.Uint32(blk[16:20])
+
+						// Traverse OFS data blocks
+						var buf []byte
+						currSector := firstData
+						dataBlockVisited := make(map[uint32]bool)
+
+						for currSector != 0 {
+							if dataBlockVisited[currSector] {
+								return nil, fmt.Errorf("cyclic data block detected at sector %d", currSector)
+							}
+							dataBlockVisited[currSector] = true
+
+							if int(currSector)*SectorSize+SectorSize > len(fs.data) {
+								return nil, fmt.Errorf("data block sector %d out of bounds", currSector)
+							}
+
+							dataBlk := fs.data[currSector*SectorSize : (currSector+1)*SectorSize]
+							dataSize := int(binary.BigEndian.Uint32(dataBlk[12:16]))
+							nextData := binary.BigEndian.Uint32(dataBlk[16:20])
+
+							if dataSize > 488 {
+								dataSize = 488
+							}
+							if dataSize > 0 && 24+dataSize <= SectorSize {
+								buf = append(buf, dataBlk[24:24+dataSize]...)
+							}
+
+							currSector = nextData
+						}
+
+						if len(buf) > fileSize {
+							buf = buf[:fileSize]
+						}
+						return buf, nil
+					}
+				}
+			}
+
+			sector = binary.BigEndian.Uint32(blk[496:500])
+		}
+	}
+
+	return nil, fmt.Errorf("file %q not found", targetName)
+}
+
 func (fs *FileSystem) DiskName() string {
 	rootOffset := RootSector * SectorSize
 	rootBlock := fs.data[rootOffset : rootOffset+SectorSize]

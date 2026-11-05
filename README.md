@@ -20,6 +20,7 @@ rdt -h | --help
 
 rdt ls -l workbench.adf
 rdt dump workbench.adf
+rdt cat workbench.adf Clock
 ```
 
 # Installation

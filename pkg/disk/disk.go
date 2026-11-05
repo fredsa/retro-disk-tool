@@ -45,6 +45,7 @@ type Reader interface {
 	Header() *DiskHeader
 	List() ([]Entry, error)
 	Usage() (*Usage, error)
+	ReadFile(path string) ([]byte, error)
 	Dump(w io.Writer) error
 }
 
@@ -133,6 +134,10 @@ func (a *adfAdapter) Usage() (*Usage, error) {
 	}, nil
 }
 
+func (a *adfAdapter) ReadFile(path string) ([]byte, error) {
+	return a.fs.ReadFile(path)
+}
+
 func (a *adfAdapter) Dump(w io.Writer) error {
 	return a.fs.Dump(w)
 }
@@ -193,6 +198,10 @@ func (a *d64Adapter) Usage() (*Usage, error) {
 	}, nil
 }
 
+func (a *d64Adapter) ReadFile(path string) ([]byte, error) {
+	return a.d.ReadFile(path)
+}
+
 func (a *d64Adapter) Dump(w io.Writer) error {
 	return a.d.Dump(w)
 }
@@ -232,6 +241,10 @@ func (a *prgAdapter) Usage() (*Usage, error) {
 	}, nil
 }
 
+func (a *prgAdapter) ReadFile(path string) ([]byte, error) {
+	return a.p.ReadFile(path)
+}
+
 func (a *prgAdapter) Dump(w io.Writer) error {
 	return a.p.Dump(w)
 }
@@ -269,6 +282,10 @@ func (a *crtAdapter) Usage() (*Usage, error) {
 	return &Usage{
 		HasUsage: u.HasUsage,
 	}, nil
+}
+
+func (a *crtAdapter) ReadFile(path string) ([]byte, error) {
+	return a.c.ReadFile(path)
 }
 
 func (a *crtAdapter) Dump(w io.Writer) error {

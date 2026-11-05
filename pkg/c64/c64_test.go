@@ -117,6 +117,14 @@ func TestD64Header(t *testing.T) {
 	if usage.InUseSectors != 147 {
 		t.Errorf("InUseSectors = %d, want 147", usage.InUseSectors)
 	}
+
+	content, err := disk.ReadFile("MENU")
+	if err != nil {
+		t.Fatalf("ReadFile(MENU) failed: %v", err)
+	}
+	if len(content) != 95 {
+		t.Errorf("len(MENU content) = %d, want 95", len(content))
+	}
 }
 
 func TestPRG(t *testing.T) {

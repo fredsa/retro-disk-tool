@@ -124,6 +124,23 @@ func (c *CRTFile) Usage() (*DiskUsageInfo, error) {
 	}, nil
 }
 
+func (c *CRTFile) ReadFile(targetName string) ([]byte, error) {
+	name := c.cartridgeName
+	if name == "" {
+		name = filepath.Base(c.filename)
+	}
+	if strings.EqualFold(targetName, name) || strings.EqualFold(targetName, filepath.Base(c.filename)) || targetName == "" || targetName == "/" {
+		var allROM []byte
+		for _, chip := range c.chips {
+			if chip.DataOffset+int(chip.RomSize) <= len(c.data) {
+				allROM = append(allROM, c.data[chip.DataOffset:chip.DataOffset+int(chip.RomSize)]...)
+			}
+		}
+		return allROM, nil
+	}
+	return nil, fmt.Errorf("file %q not found in CRT cartridge", targetName)
+}
+
 func (c *CRTFile) Dump(w io.Writer) error {
 	baseName := filepath.Base(c.filename)
 	fmt.Fprintf(w, "Commodore 64 Cartridge (CRT) Dump\n")

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 )
 
 type PRGFile struct {
@@ -50,6 +51,14 @@ func (p *PRGFile) Usage() (*DiskUsageInfo, error) {
 	return &DiskUsageInfo{
 		HasUsage: false,
 	}, nil
+}
+
+func (p *PRGFile) ReadFile(targetName string) ([]byte, error) {
+	baseName := filepath.Base(p.filename)
+	if strings.EqualFold(targetName, baseName) || targetName == "" || targetName == "/" {
+		return p.data, nil
+	}
+	return nil, fmt.Errorf("file %q not found in PRG", targetName)
 }
 
 func (p *PRGFile) Dump(w io.Writer) error {

@@ -20,6 +20,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  rdt -h | --help")
 	fmt.Fprintln(w, "  rdt ls [-l] <file>")
 	fmt.Fprintln(w, "  rdt dump <file>")
+	fmt.Fprintln(w, "  rdt cat <file> <path>")
 }
 
 func printLsHelp(w io.Writer) {
@@ -30,6 +31,11 @@ func printLsHelp(w io.Writer) {
 func printDumpHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  rdt dump <file>")
+}
+
+func printCatHelp(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  rdt cat <file> <path>")
 }
 
 func formatWithCommas[T int | int64 | uint | uint32 | uint64](n T) string {
@@ -200,6 +206,56 @@ func runDump(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+func runCat(args []string, stdout, stderr io.Writer) int {
+	catFlags := flag.NewFlagSet("cat", flag.ContinueOnError)
+	catFlags.SetOutput(stderr)
+	catFlags.Usage = func() {
+		printCatHelp(stderr)
+	}
+	if err := catFlags.Parse(args); err != nil {
+		return 1
+	}
+	if catFlags.NArg() != 2 {
+		printCatHelp(stderr)
+		return 1
+	}
+
+	diskPath := catFlags.Arg(0)
+	filePath := catFlags.Arg(1)
+
+	f, err := os.Open(diskPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error opening file %q: %v\n", diskPath, err)
+		return 1
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		fmt.Fprintf(stderr, "Error getting file info for %q: %v\n", diskPath, err)
+		return 1
+	}
+
+	reader, err := disk.Open(diskPath, f, fi.Size())
+	if err != nil {
+		fmt.Fprintf(stderr, "Error opening %q: %v\n", diskPath, err)
+		return 1
+	}
+
+	content, err := reader.ReadFile(filePath)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error reading %q in %q: %v\n", filePath, diskPath, err)
+		return 1
+	}
+
+	if _, err := stdout.Write(content); err != nil {
+		fmt.Fprintf(stderr, "Error writing content to stdout: %v\n", err)
+		return 1
+	}
+
+	return 0
+}
+
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		printHelp(stderr)
@@ -217,6 +273,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runLs(args[1:], stdout, stderr)
 	case "dump":
 		return runDump(args[1:], stdout, stderr)
+	case "cat":
+		return runCat(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Unknown option or command: %s\n\n", args[0])
 		printHelp(stderr)

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 )
 
@@ -215,7 +216,8 @@ func (d *D64Disk) ReadDirectory() ([]DiskEntry, error) {
 			// In C64 1541, file size in bytes is roughly sectors * 254 bytes
 			// (each data block has 2-byte header: next track and next sector).
 			// If sectors > 0, last sector has nextTrack=0 and nextSector=number of bytes used + 1
-			bytesCount := d.calculateFileBytes(int(entryBytes[3]), int(entryBytes[4]), sectors)
+			fileContent, _ := d.readFileContent(int(entryBytes[3]), int(entryBytes[4]), sectors)
+			bytesCount := len(fileContent)
 
 			entries = append(entries, DiskEntry{
 				Name:    name,
@@ -231,53 +233,105 @@ func (d *D64Disk) ReadDirectory() ([]DiskEntry, error) {
 	return entries, nil
 }
 
-func (d *D64Disk) calculateFileBytes(firstTrack, firstSector int, sectors int) int {
-	if firstTrack == 0 || sectors <= 0 {
-		return 0
+func (d *D64Disk) ReadFile(targetName string) ([]byte, error) {
+	bamOffset, err := getSectorOffset(18, 0)
+	if err != nil {
+		return nil, err
 	}
-	// Follow sector chain to get exact byte count
+	bam := d.data[bamOffset : bamOffset+256]
+
+	nextTrack := int(bam[0])
+	nextSector := int(bam[1])
+
+	targetLower := strings.ToLower(targetName)
+	visited := make(map[string]bool)
+
+	for nextTrack != 0 {
+		key := fmt.Sprintf("%d/%d", nextTrack, nextSector)
+		if visited[key] {
+			break
+		}
+		visited[key] = true
+
+		secOffset, err := getSectorOffset(nextTrack, nextSector)
+		if err != nil {
+			break
+		}
+		sec := d.data[secOffset : secOffset+256]
+		nextTrack = int(sec[0])
+		nextSector = int(sec[1])
+
+		for i := 0; i < 8; i++ {
+			entryBytes := sec[i*32 : (i+1)*32]
+			rawType := entryBytes[2]
+			actualType := rawType & 0x07
+			if actualType == 0 {
+				continue
+			}
+
+			rawName := entryBytes[5:21]
+			nameEnd := 16
+			for nameEnd > 0 && rawName[nameEnd-1] == 0xa0 {
+				nameEnd--
+			}
+			name := DecodeBytes(rawName[:nameEnd])
+
+			if strings.ToLower(name) == targetLower {
+				firstTrack := int(entryBytes[3])
+				firstSector := int(entryBytes[4])
+				sectors := int(binary.LittleEndian.Uint16(entryBytes[30:32]))
+				return d.readFileContent(firstTrack, firstSector, sectors)
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("file %q not found", targetName)
+}
+
+func (d *D64Disk) readFileContent(firstTrack, firstSector int, sectors int) ([]byte, error) {
+	if firstTrack == 0 {
+		return nil, nil
+	}
+
+	var data []byte
 	t := firstTrack
 	s := firstSector
 	visited := make(map[string]bool)
-	bytesTotal := 0
 	blocks := 0
 
-	for t != 0 && blocks <= sectors+5 {
+	for t != 0 && blocks <= sectors+20 {
 		key := fmt.Sprintf("%d/%d", t, s)
 		if visited[key] {
-			break
+			return nil, fmt.Errorf("cyclic block chain detected at %d/%d", t, s)
 		}
 		visited[key] = true
 		blocks++
 
 		off, err := getSectorOffset(t, s)
 		if err != nil {
-			break
+			return nil, err
 		}
 		blk := d.data[off : off+256]
 		nextT := int(blk[0])
 		nextS := int(blk[1])
 
 		if nextT == 0 {
-			// Last block: nextS is index of last used byte (offset into sector)
-			// e.g. if nextS is 10, then bytes used is nextS - 1 = 9 bytes
-			if nextS > 1 && nextS <= 255 {
-				bytesTotal += (nextS - 1)
+			// Last block: nextS is index of last byte stored in sector
+			// bytes used in this block is nextS (offset 2 up to and including offset nextS)
+			if nextS >= 2 && nextS <= 255 {
+				data = append(data, blk[2:nextS+1]...)
 			} else {
-				bytesTotal += 254
+				data = append(data, blk[2:256]...)
 			}
 			break
 		} else {
-			bytesTotal += 254
+			data = append(data, blk[2:256]...)
 		}
 		t = nextT
 		s = nextS
 	}
 
-	if bytesTotal == 0 && sectors > 0 {
-		bytesTotal = sectors * 254
-	}
-	return bytesTotal
+	return data, nil
 }
 
 func (d *D64Disk) Dump(w io.Writer) error {

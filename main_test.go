@@ -76,7 +76,7 @@ func TestRunLs(t *testing.T) {
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/Apple DOS 3.1 Master.d13"},
-			wantContain: []string{"\"DISK VOLUME 254\"", `\x08\x05\x0C\x0C\x0F`, "-    10704                     APPLESOFT", "113.75 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
+			wantContain: []string{"\"DISK VOLUME 254\"", `\x08\x05\x0C\x0C\x0F`, "-    10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
 		},
 	}
 	for _, tt := range tests {

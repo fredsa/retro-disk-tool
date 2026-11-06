@@ -174,10 +174,19 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		inUsePct := (float64(usage.InUseSectors) / float64(usage.TotalSectors)) * 100.0
 		freePct := (float64(usage.FreeSectors) / float64(usage.TotalSectors)) * 100.0
 
+		descWidth := 7
+		if len(usage.FormattedDesc) > descWidth {
+			descWidth = len(usage.FormattedDesc)
+		}
+		if len(usage.UnformattedDesc) > descWidth {
+			descWidth = len(usage.UnformattedDesc)
+		}
+		fmtStr := fmt.Sprintf("  %%-12s %%%ds (%%s bytes)\n", descWidth)
+
 		fmt.Fprintln(stdout)
 		fmt.Fprintf(stdout, "Capacity:\n")
-		fmt.Fprintf(stdout, "  Formatted:   %7s (%s bytes)\n", usage.FormattedDesc, formatWithCommas(usage.FormattedCapacity))
-		fmt.Fprintf(stdout, "  Unformatted: %7s (%s bytes)\n", usage.UnformattedDesc, formatWithCommas(usage.UnformattedCapacity))
+		fmt.Fprintf(stdout, fmtStr, "Formatted:", usage.FormattedDesc, formatWithCommas(usage.FormattedCapacity))
+		fmt.Fprintf(stdout, fmtStr, "Unformatted:", usage.UnformattedDesc, formatWithCommas(usage.UnformattedCapacity))
 		fmt.Fprintln(stdout)
 		fmt.Fprintf(stdout, "Usage:\n")
 		if usage.BAMSectors > 0 {

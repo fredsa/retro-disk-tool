@@ -241,7 +241,7 @@ func (d *DOSDisk) Usage() (*DiskUsageInfo, error) {
 
 	formattedDesc := "140 KiB"
 	if d.sectorsPerTrack == 13 {
-		formattedDesc = "113.75 KiB"
+		formattedDesc = "113 KiB"
 	}
 
 	return &DiskUsageInfo{

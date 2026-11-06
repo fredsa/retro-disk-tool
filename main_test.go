@@ -40,51 +40,51 @@ func TestRunLs(t *testing.T) {
 	}{
 		{
 			args:        []string{"ls", testFile},
-			wantContain: []string{"Clock", "c", "devs", "libs", "Capacity:", "Formatted:   880 KiB (901,120 bytes)", "Unformatted:    1 MB (1,000,000 bytes)", "Free:    26.2%    462 sectors (236,544 bytes)", "In-use:  73.8%  1,298 sectors (664,576 bytes)", "Total:  100.0%  1,760 sectors (901,120 bytes)"},
+			wantContain: []string{"Label:\n  Workbench\n", "Contents:\n", "  Clock\n", "  c\n", "  devs\n", "  libs\n", "Capacity:", "Formatted:   880 KiB (901,120 bytes)", "Unformatted:    1 MB (1,000,000 bytes)", "Free:    26.2%    462 sectors (236,544 bytes)", "In-use:  73.8%  1,298 sectors (664,576 bytes)", "Total:  100.0%  1,760 sectors (901,120 bytes)"},
 		},
 		{
 			args:        []string{"ls", "-l", testFile},
-			wantContain: []string{"Type     Size Modified            Name", "-       15800", "d           0", "Clock", "devs/", "Capacity:", "Usage:"},
+			wantContain: []string{"Label:\n  Workbench\n", "Contents:\n  Type     Size Modified            Name\n", "  -       15800", "  d           0", "Clock", "devs/", "Capacity:", "Usage:"},
 		},
 		{
 			args:        []string{"ls", "test_data/JeepersCreepersPlus1-UNK.d64"},
-			wantContain: []string{"JEEP.CREEPERS+", "170 KiB (174,848 bytes)", "250 KB (250,000 bytes)", "BAM:      2.8%     19 sectors", "Free:    82.4%    563 sectors"},
+			wantContain: []string{"Label:\n", "Contents:\n", "  JEEP.CREEPERS+\n", "170 KiB (174,848 bytes)", "250 KB (250,000 bytes)", "BAM:      2.8%     19 sectors", "Free:    82.4%    563 sectors"},
 		},
 		{
 			args:        []string{"ls", "test_data/och0528v35.d64"},
-			wantContain: []string{"\"OCH0528 V3.5 AT\" ST,2A", "MENU", "\"DISK MASTER\"", "BAM:      2.8%     19 sectors", "147 sectors", "517 sectors"},
+			wantContain: []string{"Label:\n  \"OCH0528 V3.5 AT\" ST,2A\n", "Contents:\n", "  MENU\n", "  \"DISK MASTER\"\n", "BAM:      2.8%     19 sectors", "147 sectors", "517 sectors"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/JeepersCreepersPlus1-UNK.d64"},
-			wantContain: []string{"Type     Size Modified            Name", "-       25627", "JEEP.CREEPERS+", "Capacity:", "Usage:"},
+			wantContain: []string{"Contents:\n  Type     Size Modified            Name\n", "  -       25627", "JEEP.CREEPERS+", "Capacity:", "Usage:"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/flipandflop.prg"},
-			wantContain: []string{"Type     Size Modified            Name", "-       25071", "flipandflop.prg"},
+			wantContain: []string{"Contents:\n  Type     Size Modified            Name\n", "  -       25071", "flipandflop.prg"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/EF3 Adrian Toolset.crt"},
-			wantContain: []string{"Type     Size Modified            Name", "-      622592", "\"ndefpack 1.0.1\""},
+			wantContain: []string{"Contents:\n  Type     Size Modified            Name\n", "  -      622592", "\"ndefpack 1.0.1\""},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/64 games 21.D64"},
-			wantContain: []string{"\"64 GAMES 21\" GL,2A", "Type     Size Modified            Name", "-        1798                     MENU", "?        8193", "Warning: broken directory on disk (track 18, sector 7: 23, READ ERROR (checksum error in data block))"},
+			wantContain: []string{"Label:\n  \"64 GAMES 21\" GL,2A\n", "Contents:\n  Type     Size Modified            Name\n", "  -        1798                     MENU", "  ?        8193", "Warning: broken directory on disk (track 18, sector 7: 23, READ ERROR (checksum error in data block))"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/ProDOS_2_4_3.po"},
-			wantContain: []string{"/PRODOS.2.4.3", "Type     Size Modified            Name", "-       17128 2023-12-30 02:43:00 PRODOS", "-         999 2023-12-30 02:43:00 README", "Formatted:   140 KiB (143,360 bytes)", "In-use:  90.7%    508 sectors"},
+			wantContain: []string{"Label:\n  /PRODOS.2.4.3\n", "Contents:\n  Type     Size Modified            Name\n", "  -       17128 2023-12-30 02:43:00 PRODOS", "  -         999 2023-12-30 02:43:00 README", "Formatted:   140 KiB (143,360 bytes)", "In-use:  90.7%    508 sectors"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/Apple DOS 3.1 Master.d13"},
-			wantContain: []string{"\"DISK VOLUME 254\"", "Type     Size Modified            Name", `\x08\x05\x0C\x0C\x0F`, "-       10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
+			wantContain: []string{"Label:\n  \"DISK VOLUME 254\"\n", "Contents:\n  Type     Size Modified            Name\n", `\x08\x05\x0C\x0C\x0F`, "  -       10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/DOS 3.1 Master.nib"},
-			wantContain: []string{"\"DISK VOLUME 254\"", "Type     Size Modified            Name", `\x08\x05\x0C\x0C\x0F`, "-       10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
+			wantContain: []string{"Label:\n  \"DISK VOLUME 254\"\n", "Contents:\n  Type     Size Modified            Name\n", `\x08\x05\x0C\x0C\x0F`, "  -       10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/DOS 3.2 System Master.woz"},
-			wantContain: []string{"\"DISK VOLUME 254\"", "Type     Size Modified            Name", "-         138                     HELLO", "-       13175                     APPLE-TREK", "-        6629                     PINBALL", "113 KiB (116,480 bytes)", "In-use:  99.3%    452 sectors", "Free:     0.7%      3 sectors"},
+			wantContain: []string{"Label:\n  \"DISK VOLUME 254\"\n", "Contents:\n  Type     Size Modified            Name\n", "  -         138                     HELLO", "  -       13175                     APPLE-TREK", "  -        6629                     PINBALL", "113 KiB (116,480 bytes)", "In-use:  99.3%    452 sectors", "Free:     0.7%      3 sectors"},
 		},
 	}
 	for _, tt := range tests {

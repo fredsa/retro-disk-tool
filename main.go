@@ -100,15 +100,16 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 	}
 
 	header := reader.Header()
-	if header != nil {
+	if header != nil && (header.Name != "" || header.ID != "" || header.DOSType != "") {
+		fmt.Fprintf(stdout, "Label:\n")
 		nameStr := formatFilename(header.Name)
 		if header.ID != "" || header.DOSType != "" {
 			if header.Name == "" {
 				nameStr = `""`
 			}
-			fmt.Fprintf(stdout, "%s %s,%s\n", nameStr, header.ID, header.DOSType)
+			fmt.Fprintf(stdout, "  %s %s,%s\n", nameStr, header.ID, header.DOSType)
 		} else if header.Name != "" {
-			fmt.Fprintln(stdout, nameStr)
+			fmt.Fprintf(stdout, "  %s\n", nameStr)
 		}
 		fmt.Fprintln(stdout)
 	}
@@ -116,8 +117,9 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 	var corruptWarnings []string
 	seenWarnings := make(map[string]bool)
 
+	fmt.Fprintf(stdout, "Contents:\n")
 	if *longFlag {
-		fmt.Fprintf(stdout, "%-4s %8s %-19s %s\n", "Type", "Size", "Modified", "Name")
+		fmt.Fprintf(stdout, "  %-4s %8s %-19s %s\n", "Type", "Size", "Modified", "Name")
 	}
 
 	for _, entry := range entries {
@@ -146,9 +148,9 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 			if entry.ModTime != nil {
 				timeStr = entry.ModTime.Format("2006-01-02 15:04:05")
 			}
-			fmt.Fprintf(stdout, "%-4s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
+			fmt.Fprintf(stdout, "  %-4s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
 		} else {
-			fmt.Fprintln(stdout, formatFilename(entry.Name))
+			fmt.Fprintf(stdout, "  %s\n", formatFilename(entry.Name))
 		}
 	}
 

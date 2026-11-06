@@ -79,7 +79,7 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 			return nil, err
 		}
 		return &crtAdapter{c: c}, nil
-	case ".po", ".do", ".dsk", ".d13":
+	case ".po", ".do", ".dsk", ".d13", ".nib", ".woz":
 		img, err := apple2.Open(filename, r, size)
 		if err != nil {
 			return nil, err

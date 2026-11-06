@@ -78,6 +78,14 @@ func TestRunLs(t *testing.T) {
 			args:        []string{"ls", "-l", "test_data/Apple DOS 3.1 Master.d13"},
 			wantContain: []string{"\"DISK VOLUME 254\"", `\x08\x05\x0C\x0C\x0F`, "-    10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
 		},
+		{
+			args:        []string{"ls", "-l", "test_data/DOS 3.1 Master.nib"},
+			wantContain: []string{"\"DISK VOLUME 254\"", `\x08\x05\x0C\x0C\x0F`, "-    10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
+		},
+		{
+			args:        []string{"ls", "-l", "test_data/DOS 3.2 System Master.woz"},
+			wantContain: []string{"\"DISK VOLUME 254\"", "-      138                     HELLO", "-    13175                     APPLE-TREK", "-     6629                     PINBALL", "113 KiB (116,480 bytes)", "In-use:  99.3%    452 sectors", "Free:     0.7%      3 sectors"},
+		},
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer

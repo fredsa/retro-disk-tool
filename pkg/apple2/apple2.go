@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -74,7 +75,7 @@ var dosToProdosSector = [16]int{
 }
 
 func Open(filename string, r io.ReaderAt, size int64) (Image, error) {
-	if size != 116480 && size != 143360 {
+	if size <= 0 {
 		return nil, fmt.Errorf("invalid Apple II disk size: %d bytes", size)
 	}
 	data := make([]byte, size)
@@ -82,11 +83,30 @@ func Open(filename string, r io.ReaderAt, size int64) (Image, error) {
 		return nil, fmt.Errorf("failed to read Apple II disk image: %w", err)
 	}
 
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".woz":
+		return openWOZ(data)
+	case ".nib":
+		return openNIB(data)
+	}
+
+	if size == nibDiskSize {
+		return openNIB(data)
+	}
+	if size != 116480 && size != 143360 {
+		return nil, fmt.Errorf("invalid Apple II disk size: %d bytes", size)
+	}
+
 	if size == 116480 {
 		// 13-sector Apple DOS 3.1 / 3.2 (35 tracks * 13 sectors * 256 bytes)
 		return newDOSDisk(data, 13, false)
 	}
 
+	return open140K(data)
+}
+
+func open140K(data []byte) (Image, error) {
 	// 143,360 bytes (35 tracks * 16 sectors * 256 bytes):
 	// Could be ProDOS (in ProDOS order or DOS order) or DOS 3.3 (in DOS order or ProDOS order).
 	if isProDOSBlock2(data, false) {

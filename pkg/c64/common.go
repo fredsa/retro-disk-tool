@@ -61,3 +61,34 @@ var fileTypes = map[byte]string{
 	4: "REL",
 	5: "CBM",
 }
+
+// D64 error byte descriptions (from 683-byte / 768-byte error info block)
+var d64ErrorCodes = map[byte]string{
+	0x01: "00, OK",
+	0x02: "20, READ ERROR (header block not found)",
+	0x03: "21, READ ERROR (no sync character)",
+	0x04: "22, READ ERROR (data block not present)",
+	0x05: "23, READ ERROR (checksum error in data block)",
+	0x06: "24, READ ERROR (byte decoding error)",
+	0x07: "25, WRITE ERROR (write-verify error)",
+	0x08: "26, WRITE PROTECT ON",
+	0x09: "27, READ ERROR (checksum error in header)",
+	0x0A: "28, WRITE ERROR (long data block)",
+	0x0B: "29, DISK ID MISMATCH",
+	0x0F: "74, DRIVE NOT READY",
+}
+
+func getSectorIndex(track, sector int) (int, error) {
+	if track < 1 || track > 35 {
+		return 0, fmt.Errorf("invalid track: %d", track)
+	}
+	if sector < 0 || sector >= trackSectors[track] {
+		return 0, fmt.Errorf("invalid sector %d for track %d", sector, track)
+	}
+	idx := 0
+	for t := 1; t < track; t++ {
+		idx += trackSectors[t]
+	}
+	idx += sector
+	return idx, nil
+}

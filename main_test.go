@@ -66,6 +66,10 @@ func TestRunLs(t *testing.T) {
 			args:        []string{"ls", "-l", "test_data/EF3 Adrian Toolset.crt"},
 			wantContain: []string{"-   622592", "\"ndefpack 1.0.1\""},
 		},
+		{
+			args:        []string{"ls", "-l", "test_data/64 games 21.D64"},
+			wantContain: []string{"\"64 GAMES 21\" GL,2A", "-     1798                     MENU", "?     8193", "Warning: broken directory on disk (track 18, sector 7: 23, READ ERROR (checksum error in data block))"},
+		},
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer

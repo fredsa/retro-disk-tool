@@ -2,6 +2,7 @@ package c64_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/c64"
@@ -44,6 +45,9 @@ func TestD64(t *testing.T) {
 	if entries[0].Bytes != 25627 {
 		t.Errorf("entry bytes = %d, want 25627", entries[0].Bytes)
 	}
+	if entries[0].Corrupt {
+		t.Errorf("entry Corrupt = true, want false")
+	}
 
 	usage, err := disk.Usage()
 	if err != nil {
@@ -60,6 +64,50 @@ func TestD64(t *testing.T) {
 	}
 	if usage.InUseSectors != 101 {
 		t.Errorf("InUseSectors = %d, want 101", usage.InUseSectors)
+	}
+}
+
+func TestD64CorruptDirectory(t *testing.T) {
+	const d64Path = "../../test_data/64 games 21.D64"
+	f, err := os.Open(d64Path)
+	if err != nil {
+		t.Fatalf("failed to open d64: %v", err)
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		t.Fatalf("failed to stat d64: %v", err)
+	}
+
+	disk, err := c64.OpenD64(f, fi.Size())
+	if err != nil {
+		t.Fatalf("OpenD64 failed: %v", err)
+	}
+
+	entries, err := disk.ReadDirectory()
+	if err != nil {
+		t.Fatalf("ReadDirectory failed: %v", err)
+	}
+	if len(entries) != 22 {
+		t.Fatalf("expected 22 entries, got %d", len(entries))
+	}
+
+	// First 16 entries (in sectors 18/1 and 18/4) are valid
+	for i := 0; i < 16; i++ {
+		if entries[i].Corrupt {
+			t.Errorf("entry %d (%q) unexpectedly marked corrupt: %s", i, entries[i].Name, entries[i].Error)
+		}
+	}
+
+	// Remaining 6 entries (in sector 18/7, which has error code 0x05 = 23, READ ERROR) are corrupt
+	for i := 16; i < len(entries); i++ {
+		if !entries[i].Corrupt {
+			t.Errorf("entry %d (%q) expected Corrupt=true, got false", i, entries[i].Name)
+		}
+		if !strings.Contains(entries[i].Error, "track 18, sector 7: 23, READ ERROR") {
+			t.Errorf("entry %d Error = %q, want track 18, sector 7: 23, READ ERROR", i, entries[i].Error)
+		}
 	}
 }
 

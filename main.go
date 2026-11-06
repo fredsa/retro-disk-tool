@@ -113,12 +113,28 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout)
 	}
 
+	var corruptWarnings []string
+	seenWarnings := make(map[string]bool)
+
 	for _, entry := range entries {
+		if entry.Corrupt && entry.Error != "" {
+			// Record unique directory sector errors for the summary warning
+			for _, part := range strings.Split(entry.Error, "; ") {
+				if strings.HasPrefix(part, "track ") && !seenWarnings[part] {
+					seenWarnings[part] = true
+					corruptWarnings = append(corruptWarnings, part)
+				}
+			}
+		}
 		if *longFlag {
 			typeIndicator := "-"
+			if entry.Corrupt {
+				typeIndicator = "?"
+			} else if entry.IsDir {
+				typeIndicator = "d"
+			}
 			displayName := entry.Name
 			if entry.IsDir {
-				typeIndicator = "d"
 				displayName += "/"
 			}
 			displayName = formatFilename(displayName)
@@ -129,6 +145,22 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "%s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
 		} else {
 			fmt.Fprintln(stdout, formatFilename(entry.Name))
+		}
+	}
+
+	hasCorrupt := false
+	for _, entry := range entries {
+		if entry.Corrupt {
+			hasCorrupt = true
+			break
+		}
+	}
+	if *longFlag && hasCorrupt {
+		fmt.Fprintln(stdout)
+		if len(corruptWarnings) > 0 {
+			fmt.Fprintf(stdout, "Warning: broken directory on disk (%s)\n", strings.Join(corruptWarnings, "; "))
+		} else {
+			fmt.Fprintf(stdout, "Warning: broken directory on disk (corrupted directory entries)\n")
 		}
 	}
 
@@ -285,4 +317,3 @@ func run(args []string, stdout, stderr io.Writer) int {
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
-

@@ -16,6 +16,8 @@ type Entry struct {
 	IsDir   bool
 	Size    uint32
 	ModTime *time.Time
+	Corrupt bool
+	Error   string
 }
 
 type Usage struct {
@@ -170,6 +172,8 @@ func (a *d64Adapter) List() ([]Entry, error) {
 			IsDir:   e.IsDir,
 			Size:    e.Size,
 			ModTime: e.ModTime,
+			Corrupt: e.Corrupt,
+			Error:   e.Error,
 		}
 	}
 	return res, nil

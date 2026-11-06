@@ -44,10 +44,33 @@ type DiskEntry struct {
 	Bytes   int
 	Locked  bool
 	Closed  bool
+	Corrupt bool
+	Error   string
 }
 
 type D64Disk struct {
 	data []byte
+}
+
+func (d *D64Disk) sectorErrorCode(track, sector int) byte {
+	var errOffset int
+	switch len(d.data) {
+	case 175531:
+		errOffset = 174848
+	case 197376:
+		errOffset = 196608
+	default:
+		return 0x01
+	}
+	idx, err := getSectorIndex(track, sector)
+	if err != nil || errOffset+idx >= len(d.data) {
+		return 0x01
+	}
+	code := d.data[errOffset+idx]
+	if code == 0x00 {
+		return 0x01
+	}
+	return code
 }
 
 func OpenD64(r io.ReaderAt, size int64) (*D64Disk, error) {
@@ -80,6 +103,8 @@ func (d *D64Disk) List() ([]diskEntryCompat, error) {
 			IsDir:   false,
 			Size:    uint32(e.Bytes),
 			ModTime: nil,
+			Corrupt: e.Corrupt,
+			Error:   e.Error,
 		}
 	}
 	return res, nil
@@ -91,6 +116,8 @@ type diskEntryCompat struct {
 	IsDir   bool
 	Size    uint32
 	ModTime *time.Time
+	Corrupt bool
+	Error   string
 }
 
 type DiskUsageInfo struct {
@@ -174,16 +201,19 @@ func (d *D64Disk) ReadDirectory() ([]DiskEntry, error) {
 	visited := make(map[string]bool)
 
 	for nextTrack != 0 {
-		key := fmt.Sprintf("%d/%d", nextTrack, nextSector)
+		curTrack := nextTrack
+		curSector := nextSector
+		key := fmt.Sprintf("%d/%d", curTrack, curSector)
 		if visited[key] {
 			break
 		}
 		visited[key] = true
 
-		secOffset, err := getSectorOffset(nextTrack, nextSector)
+		secOffset, err := getSectorOffset(curTrack, curSector)
 		if err != nil {
 			break
 		}
+		secErrCode := d.sectorErrorCode(curTrack, curSector)
 		sec := d.data[secOffset : secOffset+256]
 		nextTrack = int(sec[0])
 		nextSector = int(sec[1])
@@ -213,10 +243,45 @@ func (d *D64Disk) ReadDirectory() ([]DiskEntry, error) {
 
 			// Sectors count is a 16-bit little endian at offset 30..31
 			sectors := int(binary.LittleEndian.Uint16(entryBytes[30:32]))
+			fileTrack := int(entryBytes[3])
+			fileSector := int(entryBytes[4])
+
+			corrupt := false
+			var errReasons []string
+			if secErrCode != 0x01 {
+				corrupt = true
+				desc, hasDesc := d64ErrorCodes[secErrCode]
+				if !hasDesc {
+					desc = fmt.Sprintf("error 0x%02X", secErrCode)
+				}
+				errReasons = append(errReasons, fmt.Sprintf("track %d, sector %d: %s", curTrack, curSector, desc))
+			}
+			if !ok {
+				corrupt = true
+				errReasons = append(errReasons, fmt.Sprintf("invalid file type 0x%02X", rawType))
+			}
+			if fileTrack > 35 || (fileTrack == 0 && sectors > 0) {
+				corrupt = true
+				errReasons = append(errReasons, fmt.Sprintf("invalid start track %d, sector %d", fileTrack, fileSector))
+			} else if fileTrack > 0 {
+				if fileTrack >= len(trackSectors) || fileSector >= trackSectors[fileTrack] {
+					corrupt = true
+					errReasons = append(errReasons, fmt.Sprintf("invalid start track %d, sector %d", fileTrack, fileSector))
+				}
+			}
+			if sectors > 664 {
+				corrupt = true
+				errReasons = append(errReasons, fmt.Sprintf("invalid sector count %d", sectors))
+			}
+
 			// In C64 1541, file size in bytes is roughly sectors * 254 bytes
 			// (each data block has 2-byte header: next track and next sector).
 			// If sectors > 0, last sector has nextTrack=0 and nextSector=number of bytes used + 1
-			fileContent, _ := d.readFileContent(int(entryBytes[3]), int(entryBytes[4]), sectors)
+			fileContent, readErr := d.readFileContent(fileTrack, fileSector, sectors)
+			if readErr != nil && !corrupt {
+				corrupt = true
+				errReasons = append(errReasons, readErr.Error())
+			}
 			bytesCount := len(fileContent)
 
 			entries = append(entries, DiskEntry{
@@ -226,6 +291,8 @@ func (d *D64Disk) ReadDirectory() ([]DiskEntry, error) {
 				Bytes:   bytesCount,
 				Locked:  (rawType & 0x40) != 0,
 				Closed:  (rawType & 0x80) != 0,
+				Corrupt: corrupt,
+				Error:   strings.Join(errReasons, "; "),
 			})
 		}
 	}
@@ -353,6 +420,25 @@ func (d *D64Disk) Dump(w io.Writer) error {
 	fmt.Fprintf(w, "Commodore 64 1541 Disk Image (D64) Dump\n")
 	fmt.Fprintf(w, "  Disk Name: %q, ID: %q, DOS Type: %q\n", diskName, diskID, dosType)
 	fmt.Fprintf(w, "  Total Tracks: 35, Total Sectors: 683 (174,848 bytes)\n")
+	if len(d.data) == 175531 || len(d.data) == 197376 {
+		errOffset := 174848
+		if len(d.data) == 197376 {
+			errOffset = 196608
+		}
+		errBytes := d.data[errOffset:]
+		fmt.Fprintf(w, "  Sector Error Table (%d bytes present):\n", len(errBytes))
+		secIdx := 0
+		for t := 1; t <= 35; t++ {
+			numSec := trackSectors[t]
+			for s := 0; s < numSec; s++ {
+				if secIdx < len(errBytes) && errBytes[secIdx] != 0x01 && errBytes[secIdx] != 0x00 {
+					desc := d64ErrorCodes[errBytes[secIdx]]
+					fmt.Fprintf(w, "    Track %2d, Sector %2d: Error code 0x%02X (%s)\n", t, s, errBytes[secIdx], desc)
+				}
+				secIdx++
+			}
+		}
+	}
 
 	usage, err := d.Usage()
 	if err == nil {
@@ -369,8 +455,12 @@ func (d *D64Disk) Dump(w io.Writer) error {
 			if e.Locked {
 				lockStr = "<"
 			}
-			fmt.Fprintf(w, "    %-18q %-3s%s %4d sectors (%d bytes)\n",
-				e.Name, e.Type, lockStr, e.Sectors, e.Bytes)
+			corruptStr := ""
+			if e.Corrupt {
+				corruptStr = fmt.Sprintf(" [CORRUPT: %s]", e.Error)
+			}
+			fmt.Fprintf(w, "    %-18q %-3s%s %4d sectors (%d bytes)%s\n",
+				e.Name, e.Type, lockStr, e.Sectors, e.Bytes, corruptStr)
 		}
 	}
 

@@ -44,7 +44,7 @@ func TestRunLs(t *testing.T) {
 		},
 		{
 			args:        []string{"ls", "-l", testFile},
-			wantContain: []string{"-    15800", "d        0", "Clock", "devs/", "Capacity:", "Usage:"},
+			wantContain: []string{"Type     Size Modified            Name", "-       15800", "d           0", "Clock", "devs/", "Capacity:", "Usage:"},
 		},
 		{
 			args:        []string{"ls", "test_data/JeepersCreepersPlus1-UNK.d64"},
@@ -56,35 +56,35 @@ func TestRunLs(t *testing.T) {
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/JeepersCreepersPlus1-UNK.d64"},
-			wantContain: []string{"-    25627", "JEEP.CREEPERS+", "Capacity:", "Usage:"},
+			wantContain: []string{"Type     Size Modified            Name", "-       25627", "JEEP.CREEPERS+", "Capacity:", "Usage:"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/flipandflop.prg"},
-			wantContain: []string{"-    25071", "flipandflop.prg"},
+			wantContain: []string{"Type     Size Modified            Name", "-       25071", "flipandflop.prg"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/EF3 Adrian Toolset.crt"},
-			wantContain: []string{"-   622592", "\"ndefpack 1.0.1\""},
+			wantContain: []string{"Type     Size Modified            Name", "-      622592", "\"ndefpack 1.0.1\""},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/64 games 21.D64"},
-			wantContain: []string{"\"64 GAMES 21\" GL,2A", "-     1798                     MENU", "?     8193", "Warning: broken directory on disk (track 18, sector 7: 23, READ ERROR (checksum error in data block))"},
+			wantContain: []string{"\"64 GAMES 21\" GL,2A", "Type     Size Modified            Name", "-        1798                     MENU", "?        8193", "Warning: broken directory on disk (track 18, sector 7: 23, READ ERROR (checksum error in data block))"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/ProDOS_2_4_3.po"},
-			wantContain: []string{"/PRODOS.2.4.3", "-    17128 2023-12-30 02:43:00 PRODOS", "-      999 2023-12-30 02:43:00 README", "Formatted:   140 KiB (143,360 bytes)", "In-use:  90.7%    508 sectors"},
+			wantContain: []string{"/PRODOS.2.4.3", "Type     Size Modified            Name", "-       17128 2023-12-30 02:43:00 PRODOS", "-         999 2023-12-30 02:43:00 README", "Formatted:   140 KiB (143,360 bytes)", "In-use:  90.7%    508 sectors"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/Apple DOS 3.1 Master.d13"},
-			wantContain: []string{"\"DISK VOLUME 254\"", `\x08\x05\x0C\x0C\x0F`, "-    10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
+			wantContain: []string{"\"DISK VOLUME 254\"", "Type     Size Modified            Name", `\x08\x05\x0C\x0C\x0F`, "-       10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/DOS 3.1 Master.nib"},
-			wantContain: []string{"\"DISK VOLUME 254\"", `\x08\x05\x0C\x0C\x0F`, "-    10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
+			wantContain: []string{"\"DISK VOLUME 254\"", "Type     Size Modified            Name", `\x08\x05\x0C\x0C\x0F`, "-       10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/DOS 3.2 System Master.woz"},
-			wantContain: []string{"\"DISK VOLUME 254\"", "-      138                     HELLO", "-    13175                     APPLE-TREK", "-     6629                     PINBALL", "113 KiB (116,480 bytes)", "In-use:  99.3%    452 sectors", "Free:     0.7%      3 sectors"},
+			wantContain: []string{"\"DISK VOLUME 254\"", "Type     Size Modified            Name", "-         138                     HELLO", "-       13175                     APPLE-TREK", "-        6629                     PINBALL", "113 KiB (116,480 bytes)", "In-use:  99.3%    452 sectors", "Free:     0.7%      3 sectors"},
 		},
 	}
 	for _, tt := range tests {

@@ -116,6 +116,10 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 	var corruptWarnings []string
 	seenWarnings := make(map[string]bool)
 
+	if *longFlag {
+		fmt.Fprintf(stdout, "%-4s %8s %-19s %s\n", "Type", "Size", "Modified", "Name")
+	}
+
 	for _, entry := range entries {
 		if entry.Corrupt && entry.Error != "" {
 			// Record unique directory sector errors for the summary warning
@@ -142,7 +146,7 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 			if entry.ModTime != nil {
 				timeStr = entry.ModTime.Format("2006-01-02 15:04:05")
 			}
-			fmt.Fprintf(stdout, "%s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
+			fmt.Fprintf(stdout, "%-4s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
 		} else {
 			fmt.Fprintln(stdout, formatFilename(entry.Name))
 		}

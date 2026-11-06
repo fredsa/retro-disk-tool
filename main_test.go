@@ -101,6 +101,18 @@ func TestRunLs(t *testing.T) {
 	}
 }
 
+func TestRunTerminal(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"terminal"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(terminal) = %d, want 0", code)
+	}
+	for _, w := range []string{"Terminal:", "Platform:", "ANSI supported:   false", "Normal:", "Inverse:", "Flashing:"} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("terminal output missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+}
+
 func TestRunCat(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"cat", "test_data/och0528v35.d64", "MENU"}, &stdout, &stderr)

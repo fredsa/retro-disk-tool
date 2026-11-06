@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/disk"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/terminal"
 )
 
 const version = "0.1.0"
@@ -21,6 +22,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  rdt ls [-l] <file>")
 	fmt.Fprintln(w, "  rdt dump <file>")
 	fmt.Fprintln(w, "  rdt cat <file> <path>")
+	fmt.Fprintln(w, "  rdt terminal")
 }
 
 func printLsHelp(w io.Writer) {
@@ -322,6 +324,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runDump(args[1:], stdout, stderr)
 	case "cat":
 		return runCat(args[1:], stdout, stderr)
+	case "terminal":
+		terminal.Print(stdout, terminal.Detect(stdout))
+		return 0
 	default:
 		fmt.Fprintf(stderr, "Unknown option or command: %s\n\n", args[0])
 		printHelp(stderr)

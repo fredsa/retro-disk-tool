@@ -6,9 +6,11 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/disk"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/terminal"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
 
 const version = "0.1.0"
@@ -58,6 +60,20 @@ func formatFilename(name string) string {
 		return fmt.Sprintf("%q", name)
 	}
 	return name
+}
+
+// nativeDiffers reports whether an entry's platform specific name rendering
+// differs from its plain name (different text or any inverse / flashing).
+func nativeDiffers(e disk.Entry) bool {
+	if len(e.Native) == 0 {
+		return false
+	}
+	for _, g := range e.Native {
+		if g.Style != util.StyleNormal {
+			return true
+		}
+	}
+	return util.GlyphsString(e.Native) != e.Name
 }
 
 func runLs(args []string, stdout, stderr io.Writer) int {
@@ -120,11 +136,41 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 	seenWarnings := make(map[string]bool)
 
 	fmt.Fprintf(stdout, "Contents:\n")
+
+	// Show an extra "Native" column when any entry has a platform specific
+	// rendering of its name (e.g. Apple II inverse / flashing characters).
+	displayNames := make([]string, len(entries))
+	nameWidth := 0
+	hasNative := false
+	for i, entry := range entries {
+		n := entry.Name
+		if entry.IsDir {
+			n += "/"
+		}
+		displayNames[i] = formatFilename(n)
+		if w := utf8.RuneCountInString(displayNames[i]); w > nameWidth {
+			nameWidth = w
+		}
+		if nativeDiffers(entry) {
+			hasNative = true
+		}
+	}
+	useANSI := false
+	if *longFlag && hasNative {
+		useANSI = terminal.Detect(stdout).ANSI
+	}
 	if *longFlag {
-		fmt.Fprintf(stdout, "  %-4s %8s %-19s %s\n", "Type", "Size", "Modified", "Name")
+		if hasNative {
+			if nameWidth < len("Name") {
+				nameWidth = len("Name")
+			}
+			fmt.Fprintf(stdout, "  %-4s %8s %-19s %-*s %s\n", "Type", "Size", "Modified", nameWidth, "Name", "Native")
+		} else {
+			fmt.Fprintf(stdout, "  %-4s %8s %-19s %s\n", "Type", "Size", "Modified", "Name")
+		}
 	}
 
-	for _, entry := range entries {
+	for i, entry := range entries {
 		if entry.Corrupt && entry.Error != "" {
 			// Record unique directory sector errors for the summary warning
 			for _, part := range strings.Split(entry.Error, "; ") {
@@ -141,16 +187,21 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 			} else if entry.IsDir {
 				typeIndicator = "d"
 			}
-			displayName := entry.Name
-			if entry.IsDir {
-				displayName += "/"
-			}
-			displayName = formatFilename(displayName)
+			displayName := displayNames[i]
 			timeStr := "                   "
 			if entry.ModTime != nil {
 				timeStr = entry.ModTime.Format("2006-01-02 15:04:05")
 			}
-			fmt.Fprintf(stdout, "  %-4s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
+			if hasNative {
+				pad := strings.Repeat(" ", nameWidth-utf8.RuneCountInString(displayName))
+				native := terminal.Render(entry.Native, useANSI)
+				if len(entry.Native) == 0 {
+					native = entry.Name
+				}
+				fmt.Fprintf(stdout, "  %-4s %8d %s %s%s %s\n", typeIndicator, entry.Size, timeStr, displayName, pad, native)
+			} else {
+				fmt.Fprintf(stdout, "  %-4s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
+			}
 		} else {
 			fmt.Fprintf(stdout, "  %s\n", formatFilename(entry.Name))
 		}

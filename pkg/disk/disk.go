@@ -10,6 +10,7 @@ import (
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/adf"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/apple2"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/c64"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
 
 type Entry struct {
@@ -19,6 +20,9 @@ type Entry struct {
 	ModTime *time.Time
 	Corrupt bool
 	Error   string
+	// Native is the platform specific rendering of Name (nil if the
+	// platform has no distinct rendering).
+	Native []util.Glyph
 }
 
 type Usage struct {
@@ -333,6 +337,7 @@ func (a *apple2Adapter) List() ([]Entry, error) {
 			ModTime: e.ModTime,
 			Corrupt: e.Corrupt,
 			Error:   e.Error,
+			Native:  e.Native,
 		}
 	}
 	return res, nil

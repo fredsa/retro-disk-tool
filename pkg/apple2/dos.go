@@ -104,7 +104,7 @@ func (d *DOSDisk) List() ([]DiskEntry, error) {
 
 			entries = append(entries, DiskEntry{
 				Name:     name,
-				IsDir:    false,
+				Native:   dosNameGlyphs(entry[3:33]),
 				Size:     uint32(len(content)),
 				ModTime:  nil,
 				Corrupt:  corrupt,

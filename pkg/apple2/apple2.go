@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
 
 // High-ASCII / Apple II byte decoding:
@@ -38,6 +40,9 @@ type DiskEntry struct {
 	ModTime *time.Time
 	Corrupt bool
 	Error   string
+	// Native is the platform specific rendering of the name (inverse /
+	// flashing styles for Apple DOS 3.x).
+	Native []util.Glyph
 	// Format-specific info for Dump:
 	FileType string
 	Blocks   int

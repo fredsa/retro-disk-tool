@@ -5,6 +5,9 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"strings"
+
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
 
 const (
@@ -96,6 +99,30 @@ func Detect(w io.Writer) *Info {
 		info.Reason = "not a terminal (redirected or piped)"
 	}
 	return info
+}
+
+// Render converts glyphs to a string. When ansi is true, inverse and flashing
+// glyphs are wrapped in the corresponding escape sequences.
+func Render(g []util.Glyph, ansi bool) string {
+	var sb strings.Builder
+	cur := util.StyleNormal
+	for _, x := range g {
+		if ansi && x.Style != cur {
+			sb.WriteString(Normal)
+			switch x.Style {
+			case util.StyleInverse:
+				sb.WriteString(Inverse)
+			case util.StyleFlashing:
+				sb.WriteString(Flashing)
+			}
+			cur = x.Style
+		}
+		sb.WriteRune(x.R)
+	}
+	if ansi && cur != util.StyleNormal {
+		sb.WriteString(Normal)
+	}
+	return sb.String()
 }
 
 // Print writes the report and a brief normal/inverse/flashing sample to w.

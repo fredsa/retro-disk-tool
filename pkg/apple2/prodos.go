@@ -160,6 +160,7 @@ func (p *ProDOSDisk) readDirBlocks(startBlock int) ([]DiskEntry, error) {
 
 			entries = append(entries, DiskEntry{
 				Name:     name,
+				Native:   proDOSNameGlyphs(entry[1 : 1+nameLen]),
 				IsDir:    isDir,
 				Size:     size,
 				ModTime:  modTime,

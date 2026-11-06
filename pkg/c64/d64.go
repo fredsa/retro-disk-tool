@@ -3,6 +3,7 @@ package c64
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 	"io"
 	"strings"
 	"time"
@@ -465,4 +466,27 @@ func (d *D64Disk) Dump(w io.Writer) error {
 	}
 
 	return nil
+}
+
+// Format describes the D64 image format and geometry.
+func (d *D64Disk) Format() *util.FormatInfo {
+	tracks := 35
+	switch len(d.data) {
+	case 196608, 197376:
+		tracks = 40
+	}
+	desc := fmt.Sprintf("D64 (1541 disk image, %d tracks", tracks)
+	if len(d.data) == 175531 || len(d.data) == 197376 {
+		desc += ", with error table"
+	}
+	desc += ")"
+	return &util.FormatInfo{
+		Platform:   "Commodore 64",
+		Image:      desc,
+		Filesystem: "CBM DOS",
+		Tracks:     tracks,
+		Heads:      1,
+		Sectors:    "17-21",
+		SectorSize: 256,
+	}
 }

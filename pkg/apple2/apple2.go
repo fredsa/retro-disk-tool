@@ -72,6 +72,19 @@ type Image interface {
 	Usage() (*DiskUsageInfo, error)
 	ReadFile(path string) ([]byte, error)
 	Dump(w io.Writer) error
+	Format() *util.FormatInfo
+}
+
+// containerImage overrides the image (container) description of a wrapped Image.
+type containerImage struct {
+	Image
+	container string
+}
+
+func (c containerImage) Format() *util.FormatInfo {
+	f := *c.Image.Format()
+	f.Image = c.container
+	return &f
 }
 
 // Sector skew table between DOS 3.3 logical sector order and ProDOS sector order
@@ -88,17 +101,72 @@ func Open(filename string, r io.ReaderAt, size int64) (Image, error) {
 		return nil, fmt.Errorf("failed to read Apple II disk image: %w", err)
 	}
 
+	var (
+		img       Image
+		err       error
+		container string
+	)
 	ext := strings.ToLower(filepath.Ext(filename))
-	switch ext {
-	case ".woz":
-		return openWOZ(data)
-	case ".nib":
-		return openNIB(data)
+	switch {
+	case ext == ".woz":
+		img, err = openWOZ(data)
+		container = wozContainer(data)
+	case ext == ".nib" || size == nibDiskSize:
+		img, err = openNIB(data)
+		container = "NIB (nibblized image, 35 tracks x 6656 bytes)"
+	default:
+		img, err = openRaw(data, size)
+		if err == nil {
+			container = rawContainer(ext, img)
+		}
 	}
+	if err != nil {
+		return nil, err
+	}
+	return containerImage{Image: img, container: container}, nil
+}
 
-	if size == nibDiskSize {
-		return openNIB(data)
+// wozContainer describes a WOZ file from its header and INFO chunk.
+func wozContainer(data []byte) string {
+	if len(data) < 4 {
+		return "WOZ"
 	}
+	desc := fmt.Sprintf("WOZ%c (bitstream image", data[3])
+	// INFO chunk is always first: header(12) + id/size(8) + data; creator at INFO+5..37
+	if len(data) >= 12+8+37 && string(data[12:16]) == "INFO" {
+		creator := strings.TrimRight(string(data[12+8+5:12+8+37]), " \x00")
+		if creator != "" {
+			desc += fmt.Sprintf(", created by %q", creator)
+		}
+	}
+	return desc + ")"
+}
+
+// rawContainer describes a headerless sector image by extension and sector order.
+func rawContainer(ext string, img Image) string {
+	label := strings.ToUpper(strings.TrimPrefix(ext, "."))
+	if label == "" {
+		label = "Raw"
+	}
+	order := "13-sector"
+	switch d := img.(type) {
+	case *DOSDisk:
+		if d.sectorsPerTrack == 16 {
+			order = "DOS 3.3 sector order"
+			if d.prodosOrder {
+				order = "ProDOS sector order"
+			}
+		}
+	case *ProDOSDisk:
+		order = "ProDOS sector order"
+		if d.dosOrder {
+			order = "DOS 3.3 sector order"
+		}
+	}
+	return fmt.Sprintf("%s (raw sector image, %s)", label, order)
+}
+
+func openRaw(data []byte, size int64) (Image, error) {
 	if size != 116480 && size != 143360 {
 		return nil, fmt.Errorf("invalid Apple II disk size: %d bytes", size)
 	}

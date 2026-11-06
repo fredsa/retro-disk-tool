@@ -3,6 +3,7 @@ package c64
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 	"io"
 	"path/filepath"
 	"strings"
@@ -155,4 +156,13 @@ func (c *CRTFile) Dump(w io.Writer) error {
 			i+1, ch.Bank, ch.LoadAddr, ch.RomSize, ch.ChipType)
 	}
 	return nil
+}
+
+// Format describes the CRT cartridge image format.
+func (c *CRTFile) Format() *util.FormatInfo {
+	return &util.FormatInfo{
+		Platform: "Commodore 64",
+		Image: fmt.Sprintf("CRT (cartridge image, version %s, hardware type %d, %d CHIP packets)",
+			c.version, c.cartridgeType, len(c.chips)),
+	}
 }

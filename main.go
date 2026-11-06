@@ -76,6 +76,28 @@ func nativeDiffers(e disk.Entry) bool {
 	return util.GlyphsString(e.Native) != e.Name
 }
 
+// printFormat prints the platform, image format and basic geometry.
+func printFormat(w io.Writer, f *util.FormatInfo) {
+	if f == nil {
+		return
+	}
+	fmt.Fprintf(w, "Format:\n")
+	fmt.Fprintf(w, "  Platform:   %s\n", f.Platform)
+	fmt.Fprintf(w, "  Image:      %s\n", f.Image)
+	if f.Filesystem != "" {
+		fmt.Fprintf(w, "  Filesystem: %s\n", f.Filesystem)
+	}
+	if f.Tracks > 0 {
+		heads := "heads"
+		if f.Heads == 1 {
+			heads = "head"
+		}
+		fmt.Fprintf(w, "  Geometry:   %d tracks, %d %s, %s sectors/track, %d bytes/sector\n",
+			f.Tracks, f.Heads, heads, f.Sectors, f.SectorSize)
+	}
+	fmt.Fprintln(w)
+}
+
 func runLs(args []string, stdout, stderr io.Writer) int {
 	lsFlags := flag.NewFlagSet("ls", flag.ContinueOnError)
 	lsFlags.SetOutput(stderr)
@@ -116,6 +138,8 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Error listing files in %q: %v\n", diskPath, err)
 		return 1
 	}
+
+	printFormat(stdout, reader.Format())
 
 	header := reader.Header()
 	if header != nil && (header.Name != "" || header.ID != "" || header.DOSType != "") {

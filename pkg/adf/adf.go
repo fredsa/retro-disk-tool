@@ -360,3 +360,27 @@ func (fs *FileSystem) Dump(w io.Writer) error {
 
 	return nil
 }
+
+// Format describes the ADF image format and geometry.
+func (fs *FileSystem) Format() *util.FormatInfo {
+	flags := fs.data[3]
+	name := "Amiga OFS"
+	if flags&0x01 != 0 {
+		name = "Amiga FFS"
+	}
+	switch {
+	case flags&0x04 != 0:
+		name += " (directory cache)"
+	case flags&0x02 != 0:
+		name += " (international)"
+	}
+	return &util.FormatInfo{
+		Platform:   "Amiga",
+		Image:      "ADF (Amiga Disk File, raw sector image)",
+		Filesystem: name,
+		Tracks:     80,
+		Heads:      2,
+		Sectors:    "11",
+		SectorSize: SectorSize,
+	}
+}

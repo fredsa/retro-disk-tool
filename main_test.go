@@ -113,6 +113,38 @@ func TestRunTerminal(t *testing.T) {
 	}
 }
 
+func TestRunLsFormat(t *testing.T) {
+	tests := []struct {
+		file        string
+		wantContain []string
+	}{
+		{"test_data/DOS 3.2 System Master.woz", []string{"Format:\n  Platform:   Apple II\n", "WOZ2 (bitstream image", "Filesystem: Apple DOS 3.2", "35 tracks, 1 head, 13 sectors/track, 256 bytes/sector"}},
+		{"test_data/DOS 3.1 Master.nib", []string{"NIB (nibblized image", "Apple DOS 3.1"}},
+		{"test_data/Apple DOS 3.1 Master.d13", []string{"D13 (raw sector image, 13-sector)", "13 sectors/track"}},
+		{"test_data/ProDOS_2_4_3.po", []string{"PO (raw sector image, ProDOS sector order)", "Filesystem: ProDOS", "16 sectors/track"}},
+		{"test_data/aptestdos.do", []string{"DO (raw sector image, DOS 3.3 sector order)", "Apple DOS 3.3"}},
+		{"test_data/Workbench v1.0 (1985)(Commodore).adf", []string{"Platform:   Amiga", "Amiga OFS", "80 tracks, 2 heads, 11 sectors/track, 512 bytes/sector"}},
+		{"test_data/och0528v35.d64", []string{"Platform:   Commodore 64", "D64 (1541 disk image, 35 tracks)", "35 tracks, 1 head, 17-21 sectors/track, 256 bytes/sector"}},
+		{"test_data/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
+		{"test_data/EF3 Adrian Toolset.crt", []string{"CRT (cartridge image, version 1.0"}},
+	}
+	for _, tt := range tests {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{"ls", tt.file}, &stdout, &stderr); code != 0 {
+			t.Errorf("run(ls %s) = %d (stderr: %s)", tt.file, code, stderr.String())
+			continue
+		}
+		if !strings.HasPrefix(stdout.String(), "Format:\n") {
+			t.Errorf("ls %s output should start with Format:, got:\n%s", tt.file, stdout.String())
+		}
+		for _, w := range tt.wantContain {
+			if !strings.Contains(stdout.String(), w) {
+				t.Errorf("ls %s stdout missing %q; got:\n%s", tt.file, w, stdout.String())
+			}
+		}
+	}
+}
+
 func TestRunCat(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"cat", "test_data/och0528v35.d64", "MENU"}, &stdout, &stderr)

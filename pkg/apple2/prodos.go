@@ -7,6 +7,8 @@ import (
 	"math/bits"
 	"strings"
 	"time"
+
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
 
 type ProDOSDisk struct {
@@ -445,4 +447,16 @@ func (p *ProDOSDisk) Dump(w io.Writer) error {
 		}
 	}
 	return nil
+}
+
+// Format describes the ProDOS filesystem and geometry.
+func (p *ProDOSDisk) Format() *util.FormatInfo {
+	return &util.FormatInfo{
+		Platform:   "Apple II",
+		Filesystem: "ProDOS",
+		Tracks:     35,
+		Heads:      1,
+		Sectors:    "16",
+		SectorSize: 256,
+	}
 }

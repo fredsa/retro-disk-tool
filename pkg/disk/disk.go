@@ -49,6 +49,7 @@ type DiskHeader struct {
 }
 
 type Reader interface {
+	Format() *util.FormatInfo
 	Header() *DiskHeader
 	List() ([]Entry, error)
 	Usage() (*Usage, error)
@@ -373,3 +374,9 @@ func (a *apple2Adapter) ReadFile(path string) ([]byte, error) {
 func (a *apple2Adapter) Dump(w io.Writer) error {
 	return a.img.Dump(w)
 }
+
+func (a *adfAdapter) Format() *util.FormatInfo    { return a.fs.Format() }
+func (a *d64Adapter) Format() *util.FormatInfo    { return a.d.Format() }
+func (a *prgAdapter) Format() *util.FormatInfo    { return a.p.Format() }
+func (a *crtAdapter) Format() *util.FormatInfo    { return a.c.Format() }
+func (a *apple2Adapter) Format() *util.FormatInfo { return a.img.Format() }

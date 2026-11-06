@@ -4,7 +4,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
 
 type DOSDisk struct {
@@ -340,4 +343,20 @@ func (d *DOSDisk) Dump(w io.Writer) error {
 	}
 
 	return nil
+}
+
+// Format describes the Apple DOS 3.x filesystem and geometry.
+func (d *DOSDisk) Format() *util.FormatInfo {
+	fsName := "Apple DOS"
+	if vtoc, err := d.readSector(17, 0); err == nil {
+		fsName = fmt.Sprintf("Apple DOS 3.%d", vtoc[3])
+	}
+	return &util.FormatInfo{
+		Platform:   "Apple II",
+		Filesystem: fsName,
+		Tracks:     35,
+		Heads:      1,
+		Sectors:    strconv.Itoa(d.sectorsPerTrack),
+		SectorSize: 256,
+	}
 }

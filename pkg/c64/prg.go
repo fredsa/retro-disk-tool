@@ -3,6 +3,7 @@ package c64
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 	"io"
 	"path/filepath"
 	"strings"
@@ -70,4 +71,12 @@ func (p *PRGFile) Dump(w io.Writer) error {
 	endAddr := int(p.loadAddr) + len(p.data)
 	fmt.Fprintf(w, "  Memory Range: 0x%04X - 0x%04X\n", p.loadAddr, endAddr)
 	return nil
+}
+
+// Format describes the PRG file format.
+func (p *PRGFile) Format() *util.FormatInfo {
+	return &util.FormatInfo{
+		Platform: "Commodore 64",
+		Image:    fmt.Sprintf("PRG (program file, load address $%04X)", p.loadAddr),
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/adf"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/apple2"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/c64"
 )
 
@@ -78,6 +79,12 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 			return nil, err
 		}
 		return &crtAdapter{c: c}, nil
+	case ".po", ".do", ".dsk", ".d13":
+		img, err := apple2.Open(filename, r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &apple2Adapter{img: img}, nil
 	default:
 		return nil, fmt.Errorf("unsupported file extension: %s", ext)
 	}
@@ -294,4 +301,70 @@ func (a *crtAdapter) ReadFile(path string) ([]byte, error) {
 
 func (a *crtAdapter) Dump(w io.Writer) error {
 	return a.c.Dump(w)
+}
+
+type apple2Adapter struct {
+	img apple2.Image
+}
+
+func (a *apple2Adapter) Header() *DiskHeader {
+	h := a.img.Header()
+	if h == nil {
+		return nil
+	}
+	return &DiskHeader{
+		Name:    h.Name,
+		ID:      h.ID,
+		DOSType: h.DOSType,
+	}
+}
+
+func (a *apple2Adapter) List() ([]Entry, error) {
+	entries, err := a.img.List()
+	if err != nil {
+		return nil, err
+	}
+	res := make([]Entry, len(entries))
+	for i, e := range entries {
+		res[i] = Entry{
+			Name:    e.Name,
+			IsDir:   e.IsDir,
+			Size:    e.Size,
+			ModTime: e.ModTime,
+			Corrupt: e.Corrupt,
+			Error:   e.Error,
+		}
+	}
+	return res, nil
+}
+
+func (a *apple2Adapter) Usage() (*Usage, error) {
+	u, err := a.img.Usage()
+	if err != nil {
+		return nil, err
+	}
+	return &Usage{
+		FormattedCapacity:   u.FormattedCapacity,
+		FormattedDesc:       u.FormattedDesc,
+		UnformattedCapacity: u.UnformattedCapacity,
+		UnformattedDesc:     u.UnformattedDesc,
+		SectorSize:          u.SectorSize,
+		TotalSectors:        u.TotalSectors,
+		InUseSectors:        u.InUseSectors,
+		FreeSectors:         u.FreeSectors,
+		BAMSectors:          u.BAMSectors,
+		TotalBytes:          u.TotalBytes,
+		InUseBytes:          u.InUseBytes,
+		FreeBytes:           u.FreeBytes,
+		BAMBytes:            u.BAMBytes,
+		HasUsage:            u.HasUsage,
+	}, nil
+}
+
+func (a *apple2Adapter) ReadFile(path string) ([]byte, error) {
+	return a.img.ReadFile(path)
+}
+
+func (a *apple2Adapter) Dump(w io.Writer) error {
+	return a.img.Dump(w)
 }

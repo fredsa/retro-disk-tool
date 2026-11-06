@@ -56,7 +56,7 @@ func TestRunLs(t *testing.T) {
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/JeepersCreepersPlus1-UNK.d64"},
-			wantContain: []string{"Contents:\n  Type     Size Modified            Name\n", "  -       25627", "JEEP.CREEPERS+", "Capacity:", "Usage:"},
+			wantContain: []string{"Contents:\n  Type     Size Modified            Name", "Native\n", `"JEEP.CREEPERS+"`, "  -       25627", "JEEP.CREEPERS+", "Capacity:", "Usage:"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/flipandflop.prg"},
@@ -68,7 +68,7 @@ func TestRunLs(t *testing.T) {
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/64 games 21.D64"},
-			wantContain: []string{"Label:\n  \"64 GAMES 21\" GL,2A\n", "Contents:\n  Type     Size Modified            Name\n", "  -        1798                     MENU", "  ?        8193", "Warning: broken directory on disk (track 18, sector 7: 23, READ ERROR (checksum error in data block))"},
+			wantContain: []string{"Label:\n  \"64 GAMES 21\" GL,2A\n", "Contents:\n  Type     Size Modified            Name", "Native\n", `"V▂π🭻▂πππππππππππ"`, "  -        1798                     MENU", "  ?        8193", "Warning: broken directory on disk (track 18, sector 7: 23, READ ERROR (checksum error in data block))"},
 		},
 		{
 			args:        []string{"ls", "-l", "test_data/ProDOS_2_4_3.po"},

@@ -47,6 +47,7 @@ type DiskEntry struct {
 	Closed  bool
 	Corrupt bool
 	Error   string
+	Native  []util.Glyph
 }
 
 type D64Disk struct {
@@ -106,6 +107,7 @@ func (d *D64Disk) List() ([]diskEntryCompat, error) {
 			ModTime: nil,
 			Corrupt: e.Corrupt,
 			Error:   e.Error,
+			Native:  e.Native,
 		}
 	}
 	return res, nil
@@ -119,6 +121,7 @@ type diskEntryCompat struct {
 	ModTime *time.Time
 	Corrupt bool
 	Error   string
+	Native  []util.Glyph
 }
 
 type DiskUsageInfo struct {
@@ -294,6 +297,7 @@ func (d *D64Disk) ReadDirectory() ([]DiskEntry, error) {
 				Closed:  (rawType & 0x80) != 0,
 				Corrupt: corrupt,
 				Error:   strings.Join(errReasons, "; "),
+				Native:  petsciiQuotedGlyphs(rawName[:nameEnd]),
 			})
 		}
 	}

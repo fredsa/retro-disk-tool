@@ -186,6 +186,7 @@ func (a *d64Adapter) List() ([]Entry, error) {
 			ModTime: e.ModTime,
 			Corrupt: e.Corrupt,
 			Error:   e.Error,
+			Native:  e.Native,
 		}
 	}
 	return res, nil

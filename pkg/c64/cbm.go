@@ -304,6 +304,14 @@ func (d *CBMDisk) headerLinkMismatch() string {
 	return fmt.Sprintf("the header's directory link (%d/%d) is not used by the drive; the directory starts at %d/%d", h[0], h[1], t, s)
 }
 
+// errorDesc describes a D64 error table code.
+func errorDesc(code byte) string {
+	if desc, ok := d64ErrorCodes[code]; ok {
+		return desc
+	}
+	return fmt.Sprintf("unknown error code $%02X", code)
+}
+
 func trimPadding(b []byte) []byte {
 	n := len(b)
 	for n > 0 && b[n-1] == 0xA0 {
@@ -390,11 +398,7 @@ func (d *CBMDisk) parseEntry(b []byte, at [2]int, secErr byte, within trackRange
 	}
 	e.Type = typeStr
 	if secErr != 0x01 {
-		desc, has := d64ErrorCodes[secErr]
-		if !has {
-			desc = fmt.Sprintf("error 0x%02X", secErr)
-		}
-		reasons = append(reasons, fmt.Sprintf("track %d, sector %d: %s", at[0], at[1], desc))
+		reasons = append(reasons, fmt.Sprintf("track %d, sector %d: %s", at[0], at[1], errorDesc(secErr)))
 	}
 	if ftype == 5 {
 		// 1581 partition: a contiguous area, possibly a sub-directory.
@@ -473,8 +477,7 @@ func (d *CBMDisk) readChain(track, sector int) ([]byte, error) {
 			return out, err
 		}
 		if code := d.sectorErrorCode(track, sector); code != 0x01 {
-			desc := d64ErrorCodes[code]
-			return out, fmt.Errorf("track %d, sector %d: %s", track, sector, desc)
+			return out, fmt.Errorf("track %d, sector %d: %s", track, sector, errorDesc(code))
 		}
 		next, nextS := int(blk[0]), int(blk[1])
 		if next == 0 {
@@ -748,6 +751,13 @@ func (d *CBMDisk) Warnings() []string {
 	if msg := d.headerLinkMismatch(); msg != "" && len(w) == 0 {
 		w = append(w, msg)
 	}
+	ht, hs := d.layout.dirTrack, 0
+	if d.layout.headerTrack > 0 {
+		ht, hs = d.layout.headerTrack, d.layout.headerSector
+	}
+	if code := d.sectorErrorCode(ht, hs); code != 0x01 {
+		w = append(w, fmt.Sprintf("the header/BAM sector (%d/%d) has a read error (%s), so the label and usage are unreliable", ht, hs, errorDesc(code)))
+	}
 	return append(w, d.errorWarnings()...)
 }
 
@@ -780,6 +790,44 @@ func (d *CBMDisk) countErrors() int {
 	return n
 }
 
+// BAMMessage returns text hidden in the unused part of a 1541 BAM sector
+// (after the disk ID, $AB-$FF), as some disks carry a message there. Runs
+// of PETSCII text with at least 3 letters or digits are kept.
+func (d *CBMDisk) BAMMessage() string {
+	if d.layout.drive != "1541" {
+		return ""
+	}
+	b := append([]byte{}, d.headerSector()[0xAB:]...)
+	if d.extBAM >= 0 {
+		off := extBAMLayouts[d.extBAM].off - 0xAB
+		copy(b[off:off+20], make([]byte, 20))
+	}
+	var parts []string
+	var run []byte
+	flush := func() {
+		text := strings.TrimSpace(DecodeBytes(run))
+		alnum := 0
+		for _, c := range text {
+			if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' {
+				alnum++
+			}
+		}
+		if alnum >= 3 {
+			parts = append(parts, text)
+		}
+		run = run[:0]
+	}
+	for _, c := range b {
+		if c >= 0x20 && c < 0x60 || c >= 0xC1 && c <= 0xDA {
+			run = append(run, c)
+		} else {
+			flush()
+		}
+	}
+	flush()
+	return strings.Join(parts, " ")
+}
+
 func (d *CBMDisk) filesystem() string {
 	if d.layout.drive == "DFI" {
 		return "DreamLoad"
@@ -805,6 +853,7 @@ func (d *CBMDisk) Format() *util.FormatInfo {
 		Heads:      d.layout.heads,
 		Sectors:    d.layout.sectorsDesc,
 		SectorSize: 256,
+		Comment:    d.BAMMessage(),
 	}
 }
 
@@ -842,6 +891,9 @@ func (d *CBMDisk) Dump(w io.Writer) error {
 	fmt.Fprintf(w, "  Image: %s\n", d.container)
 	fmt.Fprintf(w, "  Filesystem: %s\n", d.filesystem())
 	fmt.Fprintf(w, "  Disk Name: %q, ID: %q, DOS Type: %q\n", h.Name, h.ID, h.DOSType)
+	if msg := d.BAMMessage(); msg != "" {
+		fmt.Fprintf(w, "  BAM message: %q\n", msg)
+	}
 	fmt.Fprintf(w, "  Tracks: %d, Total Sectors: %d (%d bytes), Directory track: %d\n",
 		d.layout.tracks, d.layout.totalSectors(), len(d.data), d.layout.dirTrack)
 	if d.g64 != nil {
@@ -852,7 +904,7 @@ func (d *CBMDisk) Dump(w io.Writer) error {
 		for t := 1; t <= d.layout.tracks; t++ {
 			for s := 0; s < d.layout.spt(t); s++ {
 				if code := d.sectorErrorCode(t, s); code != 0x01 {
-					fmt.Fprintf(w, "    Track %2d, Sector %2d: Error code 0x%02X (%s)\n", t, s, code, d64ErrorCodes[code])
+					fmt.Fprintf(w, "    Track %2d, Sector %2d: Error code 0x%02X (%s)\n", t, s, code, errorDesc(code))
 				}
 			}
 		}

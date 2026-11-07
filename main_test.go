@@ -52,26 +52,6 @@ func TestRunLs(t *testing.T) {
 			args:        []string{"ls", "-l", testFile},
 			wantContain: []string{"Label:\n  Workbench\n", "Contents:\n  Type     Size Modified            Name\n", "  -       15800", "  d           0", "Clock", "devs/", "Capacity:", "Usage:"},
 		},
-		{
-			args:        []string{"ls", "images/JeepersCreepersPlus1-UNK.d64"},
-			wantContain: []string{"Label:\n", "Contents:\n", "  JEEP.CREEPERS+\n", "170 KiB (174,848 bytes)", "250 KB (250,000 bytes)", "BAM:      2.8%     19 sectors", "Free:    82.4%    563 sectors"},
-		},
-		{
-			args:        []string{"ls", "images/och0528v35.d64"},
-			wantContain: []string{"Label:\n  \"OCH0528 V3.5 AT\" ST,2A\n", "Contents:\n", "  MENU\n", "  \"DISK MASTER\"\n", "BAM:      2.8%     19 sectors", "147 sectors", "517 sectors"},
-		},
-		{
-			args:        []string{"ls", "-l", "images/JeepersCreepersPlus1-UNK.d64"},
-			wantContain: []string{"Contents:\n  Type     Size Modified            Name", "Native\n", `"JEEP.CREEPERS+"`, "  -       25627", "JEEP.CREEPERS+", "Capacity:", "Usage:"},
-		},
-		{
-			args:        []string{"ls", "-l", "images/flipandflop.prg"},
-			wantContain: []string{"Contents:\n  Type     Size Modified            Name\n", "  -       25071", "flipandflop.prg"},
-		},
-		{
-			args:        []string{"ls", "-l", "images/64 games 21.D64"},
-			wantContain: []string{"Label:\n  \"64 GAMES 21\" GL,2A\n", "Contents:\n  Type     Size Modified            Name", "Native\n", `"V▂π🭻▂πππππππππππ"`, "  -        1798                     MENU", "  ?        8193", "Warning: broken directory on disk (track 18, sector 7: 23, READ ERROR (checksum error in data block))"},
-		},
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer
@@ -105,7 +85,6 @@ func TestRunLsFormat(t *testing.T) {
 		wantContain []string
 	}{
 		{"images/Workbench v1.0 (1985)(Commodore).adf", []string{"Platform:   Amiga", "Amiga OFS", "80 tracks, 2 heads, 11 sectors/track, 512 bytes/sector"}},
-		{"images/och0528v35.d64", []string{"Platform:   Commodore 64", "D64 (1541 disk image, 35 tracks)", "35 tracks, 1 head, 17-21 sectors/track, 256 bytes/sector"}},
 		{"images/dos.atr", []string{"Platform:   Atari 8-bit", "ATR (disk image", "Atari DOS 2.0S", "40 tracks, 1 head, 18 sectors/track, 128 bytes/sector"}},
 		{"images/lpmud.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
 		{"images/ZX81_Kong (Paul Farrow 2010) [V1-01].p", []string{"Platform:   Sinclair ZX81", "P (program file, memory image from $4009)"}},
@@ -114,14 +93,6 @@ func TestRunLsFormat(t *testing.T) {
 		{"images/mfgamania.img", []string{"Platform:   Atari 8-bit", "XFD (raw sector image, 128 byte sectors, all bits inverted)", "Atari DOS 2.0S"}},
 		{"images/maxell.img", []string{"Platform:   IBM PC", "IMG (raw sector image; filesystem in the first 720 of 1440 sectors)", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
 		{"images/T80M4UPG.IMD", []string{"Platform:   TRS-80 Model 4", "IMD (ImageDisk 1.10, 250 kbps MFM)", "Filesystem: TRSDOS 6.2", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
-		{"images/c64/ultima iv.d81", []string{"Platform:   Commodore 64", "D81 (1581 disk image, 80 tracks)", "80 tracks, 2 heads, 20 sectors/track, 256 bytes/sector"}},
-		{"images/c64/40 tracks/the_sun.d64", []string{"D64 (1541 disk image, 40 tracks)", "Filesystem: CBM DOS (SpeedDOS 40 track BAM)"}},
-		{"images/c64/force.g64", []string{"G64 (GCR-1541 bitstream image, 84 half-tracks)", "35 tracks, 1 head, 17-21 sectors/track"}},
-		{"images/c64/lemmings.dfi", []string{"DFI (DreamLoad file archive, version 1.0, 14 tracks of 256 sectors)", "Filesystem: DreamLoad"}},
-		{"images/c64/choppin_mall.t64", []string{"T64 (tape archive, version 1.0, 1 of 30 entries used)"}},
-		{"images/c64/1942.tap", []string{"TAP (raw tape image, version 1, C64, PAL, 718070 pulses)"}},
-		{"images/c64/war64.tcrt", []string{"TCRT (tapecart image, version 1, 2012 KiB flash)", "Filesystem: TapcrtFileSys"}},
-		{"images/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer
@@ -141,26 +112,24 @@ func TestRunLsFormat(t *testing.T) {
 }
 
 func TestRunCat(t *testing.T) {
+	path := testimages.Path(t, "c64", "m.u.l.e.d64")
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"cat", "images/och0528v35.d64", "MENU"}, &stdout, &stderr)
-	if code != 0 {
-		t.Fatalf("run(cat och0528v35.d64 MENU) returned %d, want 0 (stderr: %s)", code, stderr.String())
+	if code := run([]string{"cat", path, "M.U.L.E."}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(cat m.u.l.e.d64 M.U.L.E.) returned %d, want 0 (stderr: %s)", code, stderr.String())
 	}
-	if stdout.Len() != 95 {
-		t.Errorf("stdout len = %d, want 95", stdout.Len())
+	if stdout.Len() != 82 || !bytes.HasPrefix(stdout.Bytes(), []byte{0x01, 0x08}) {
+		t.Errorf("stdout = %d bytes, want 82 bytes loading at $0801", stdout.Len())
 	}
 
 	stdout.Reset()
 	stderr.Reset()
-	code = run([]string{"cat", "images/och0528v35.d64", "nonexistent"}, &stdout, &stderr)
-	if code != 1 {
+	if code := run([]string{"cat", path, "nonexistent"}, &stdout, &stderr); code != 1 {
 		t.Errorf("run(cat nonexistent) returned %d, want 1", code)
 	}
 
 	stdout.Reset()
 	stderr.Reset()
-	code = run([]string{"cat", "images/och0528v35.d64"}, &stdout, &stderr)
-	if code != 1 {
+	if code := run([]string{"cat", path}, &stdout, &stderr); code != 1 {
 		t.Errorf("run(cat without path) returned %d, want 1", code)
 	}
 }
@@ -173,14 +142,6 @@ func TestRunDump(t *testing.T) {
 		{
 			file:        "images/Workbench v1.0 (1985)(Commodore).adf",
 			wantContain: []string{"Amiga ADF Disk Image Dump", "Workbench", "Root Block: sector 880"},
-		},
-		{
-			file:        "images/JeepersCreepersPlus1-UNK.d64",
-			wantContain: []string{"Commodore 64 1541 Disk Image (D64) Dump", "JEEP.CREEPERS+", "101 sectors"},
-		},
-		{
-			file:        "images/flipandflop.prg",
-			wantContain: []string{"Commodore 64 PRG File Dump", "Load Address: 0x0801", "25071 bytes"},
 		},
 	}
 	for _, tt := range tests {
@@ -456,43 +417,52 @@ func TestRunLsIMD(t *testing.T) {
 
 func TestRunLsC64Containers(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ls", "-l", "-r", "images/c64/partitions/0912.d64.d81"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("ls -l -r 0912.d64.d81 = %d (stderr: %s)", code, stderr.String())
+	if code := run([]string{"ls", "-l", "-r", testimages.Path(t, "c64", "error info/0905.d64.d81")}, &stdout, &stderr); code != 0 {
+		t.Fatalf("ls -l -r 0905.d64.d81 = %d (stderr: %s)", code, stderr.String())
 	}
 	for _, w := range []string{
 		"  d       61440                     \"CODING TOOLS/\"",
 		"  ?        7112                     \"COPIES 1541+1581/BURSTNIBBLER 1.9\"",
 		"Warning: broken directory on disk",
+		"Warning: 20 sectors have read errors in the error table (66/20,",
 	} {
 		if !strings.Contains(stdout.String(), w) {
 			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
 		}
 	}
 
-	stdout.Reset()
-	if code := run([]string{"ls", "images/c64/smashtv.g64"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("ls smashtv.g64 = %d (stderr: %s)", code, stderr.String())
+	// A failed download (an HTML page) saved as .d64 is rejected.
+	html := filepath.Join(t.TempDir(), "lotus.d64")
+	if err := os.WriteFile(html, []byte("<!DOCTYPE html>\n<title>404 Not Found</title>\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	for _, w := range []string{
-		"Warning: 2 sectors could not be decoded from the GCR data (1/5, 6/18)",
-		"  Extra:   14.8%    119 sectors (30,464 bytes)",
-		"  Total:  100.0%    802 sectors (205,312 bytes)",
-	} {
-		if !strings.Contains(stdout.String(), w) {
-			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
-		}
-	}
-
-	stdout.Reset()
-	if code := run([]string{"cat", "images/c64/war64.tcrt", "Arkanoid"}, &stdout, &stderr); code != 0 || stdout.Len() != 34242 {
-		t.Errorf("cat war64.tcrt Arkanoid = code %d, %d bytes", code, stdout.Len())
-	}
-
 	stderr.Reset()
-	if code := run([]string{"ls", "images/c64/40 tracks/lotus esprit turbo challenge (1992)(gremlin) [s1].d64"}, &stdout, &stderr); code != 1 ||
-		!strings.Contains(stderr.String(), "invalid D64 disk size: 808 bytes") {
+	if code := run([]string{"ls", html}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), "invalid D64 disk size") {
 		t.Errorf("ls of an HTML page saved as .d64 = code %d, stderr %q", code, stderr.String())
 	}
+
+	// Local images without a download source.
+	t.Run("smashtv.g64", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{"ls", testimages.Path(t, "c64", "smashtv.g64")}, &stdout, &stderr); code != 0 {
+			t.Fatalf("ls smashtv.g64 = %d (stderr: %s)", code, stderr.String())
+		}
+		for _, w := range []string{
+			"Warning: 2 sectors could not be decoded from the GCR data (1/5, 6/18)",
+			"  Extra:   14.8%    119 sectors (30,464 bytes)",
+			"  Total:  100.0%    802 sectors (205,312 bytes)",
+		} {
+			if !strings.Contains(stdout.String(), w) {
+				t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+			}
+		}
+	})
+	t.Run("war64.tcrt", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{"cat", testimages.Path(t, "c64", "war64.tcrt"), "Arkanoid"}, &stdout, &stderr); code != 0 || stdout.Len() != 34242 {
+			t.Errorf("cat war64.tcrt Arkanoid = code %d, %d bytes", code, stdout.Len())
+		}
+	})
 }
 
 // TestRunLsApple lists Apple II images from images/apple, downloading them
@@ -571,6 +541,76 @@ func TestRunCRT(t *testing.T) {
 		for _, w := range tc.wantContain {
 			if !strings.Contains(stdout.String(), w) {
 				t.Errorf("run(%s) stdout missing %q; got:\n%s", tc.args[0], w, stdout.String())
+			}
+		}
+	}
+}
+
+// TestRunLsC64 lists C64 images from images/c64, downloading them first if
+// they have a download source (others are skipped when absent).
+func TestRunLsC64(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string // ls flags
+		wantContain []string
+	}{
+		{"m.u.l.e.d64", []string{"-l"}, []string{"Platform:   Commodore 64", "D64 (1541 disk image, 35 tracks)", "35 tracks, 1 head, 17-21 sectors/track, 256 bytes/sector",
+			"Label:\n  M.U.L.E. 88,2A\n", "Contents:\n  Type     Size Modified            Name     Native\n", "  -          82                     M.U.L.E. \"M.U.L.E.\"",
+			"170 KiB (174,848 bytes)", "250 KB (250,000 bytes)", "BAM:      2.8%     19 sectors", "Free:    57.8%    395 sectors"}},
+		{"m.u.l.e.d64", nil, []string{"Contents:\n  M.U.L.E.\n  MULE.2\n  M\n"}},
+		{"42 tracks/scan42.d64", nil, []string{"D64 (1541 disk image, 42 tracks)", "Filesystem: CBM DOS (SpeedDOS 40 track BAM)",
+			"  Extra:    4.2%     34 sectors (8,704 bytes)", "  Total:  100.0%    802 sectors (205,312 bytes)"}},
+		{"error info/0006x.d64", []string{"-l"}, []string{"D64 (1541 disk image, 35 tracks, with error table)",
+			"Warning: broken directory on disk (track 13, sector 15: 23, READ ERROR (checksum error in data block))",
+			"Warning: 1 sectors have read errors in the error table (13/15)"}},
+		{"bam message/06-expert_v41.d64", nil, []string{"  Comment:    BETA VERSION EXPERT V4.1                  SN 66151122354\n"}},
+		{"ultima v.d81", nil, []string{"D81 (1581 disk image, 80 tracks)", "80 tracks, 2 heads, 20 sectors/track, 256 bytes/sector", "Label:\n  \"ULTIMA V\" 65,3D\n"}},
+		{"lemmings.dfi", nil, []string{"DFI (DreamLoad file archive, version 1.0, 14 tracks of 256 sectors)", "Filesystem: DreamLoad"}},
+		{"choppin_mall.t64", nil, []string{"T64 (tape archive, version 1.0, 1 of 30 entries used)"}},
+		{"1942.tap", nil, []string{"TAP (raw tape image, version 1, C64, PAL, 718070 pulses)"}},
+		// Local images without a download source.
+		{"40 tracks/the_sun.d64", nil, []string{"D64 (1541 disk image, 40 tracks)", "Filesystem: CBM DOS (SpeedDOS 40 track BAM)"}},
+		{"force.g64", nil, []string{"G64 (GCR-1541 bitstream image, 84 half-tracks)", "35 tracks, 1 head, 17-21 sectors/track"}},
+		{"war64.tcrt", nil, []string{"TCRT (tapecart image, version 1, 2012 KiB flash)", "Filesystem: TapcrtFileSys"}},
+	}
+	for _, tt := range tests {
+		t.Run(strings.Join(append(tt.args, tt.name), " "), func(t *testing.T) {
+			args := append(append([]string{"ls"}, tt.args...), testimages.Path(t, "c64", tt.name))
+			var stdout, stderr bytes.Buffer
+			if code := run(args, &stdout, &stderr); code != 0 {
+				t.Fatalf("ls %s = %d (stderr: %s)", tt.name, code, stderr.String())
+			}
+			for _, w := range tt.wantContain {
+				if !strings.Contains(stdout.String(), w) {
+					t.Errorf("ls %s stdout missing %q; got:\n%s", tt.name, w, stdout.String())
+				}
+			}
+		})
+	}
+
+	// A PRG file, extracted from a disk image.
+	var prg, stderr bytes.Buffer
+	if code := run([]string{"cat", testimages.Path(t, "c64", "m.u.l.e.d64"), "M.U.L.E."}, &prg, &stderr); code != 0 {
+		t.Fatalf("cat M.U.L.E. = %d (stderr: %s)", code, stderr.String())
+	}
+	path := filepath.Join(t.TempDir(), "mule.prg")
+	if err := os.WriteFile(path, prg.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		cmd  string
+		want []string
+	}{
+		{"ls", []string{"PRG (program file, load address $0801)", "  mule.prg\n"}},
+		{"dump", []string{"Commodore 64 PRG File Dump", "Load Address: 0x0801", "80 bytes"}},
+	} {
+		var stdout bytes.Buffer
+		if code := run([]string{tc.cmd, path}, &stdout, &stderr); code != 0 {
+			t.Fatalf("%s mule.prg = %d (stderr: %s)", tc.cmd, code, stderr.String())
+		}
+		for _, w := range tc.want {
+			if !strings.Contains(stdout.String(), w) {
+				t.Errorf("%s mule.prg stdout missing %q; got:\n%s", tc.cmd, w, stdout.String())
 			}
 		}
 	}

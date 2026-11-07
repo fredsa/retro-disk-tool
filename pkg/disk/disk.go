@@ -59,6 +59,12 @@ type Reader interface {
 	Dump(w io.Writer) error
 }
 
+// DirLister is implemented by readers whose filesystems have subdirectories.
+type DirLister interface {
+	// ListDir returns the entries of the directory at path ("" for root).
+	ListDir(path string) ([]Entry, error)
+}
+
 func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 	ext := strings.ToLower(filepath.Ext(filename))
 	switch ext {
@@ -458,8 +464,10 @@ func (a *ibmAdapter) Header() *DiskHeader {
 	return &DiskHeader{Name: label}
 }
 
-func (a *ibmAdapter) List() ([]Entry, error) {
-	entries, err := a.d.List()
+func (a *ibmAdapter) List() ([]Entry, error) { return a.ListDir("") }
+
+func (a *ibmAdapter) ListDir(path string) ([]Entry, error) {
+	entries, err := a.d.ListDir(path)
 	if err != nil {
 		return nil, err
 	}

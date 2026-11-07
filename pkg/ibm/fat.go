@@ -464,6 +464,22 @@ func (d *Disk) List() ([]Entry, error) {
 	return entries, err
 }
 
+// ListDir returns the entries of the directory at path ("" or "/" for root).
+func (d *Disk) ListDir(path string) ([]Entry, error) {
+	if strings.Trim(path, `/\`) == "" {
+		return d.List()
+	}
+	e, err := d.find(path)
+	if err != nil {
+		return nil, err
+	}
+	if !e.IsDir {
+		return nil, fmt.Errorf("%q is not a directory", path)
+	}
+	entries, _, err := d.readDir(e.Cluster)
+	return entries, err
+}
+
 // find resolves a "/" or "\" separated path to a directory entry.
 func (d *Disk) find(path string) (*Entry, error) {
 	parts := strings.FieldsFunc(path, func(r rune) bool { return r == '/' || r == '\\' })
@@ -481,7 +497,7 @@ func (d *Disk) find(path string) (*Entry, error) {
 			}
 		}
 		if found == nil {
-			return nil, fmt.Errorf("file %q not found", path)
+			return nil, fmt.Errorf("%q not found", path)
 		}
 		if i == len(parts)-1 {
 			return found, nil

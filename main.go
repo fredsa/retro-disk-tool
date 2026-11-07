@@ -21,7 +21,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  rdt -v | --version")
 	fmt.Fprintln(w, "  rdt -h | --help")
-	fmt.Fprintln(w, "  rdt ls [-l] <file>")
+	fmt.Fprintln(w, "  rdt ls [-l] <file> [<dir>]")
 	fmt.Fprintln(w, "  rdt dump <file>")
 	fmt.Fprintln(w, "  rdt cat <file> <path>")
 	fmt.Fprintln(w, "  rdt terminal")
@@ -29,7 +29,7 @@ func printHelp(w io.Writer) {
 
 func printLsHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  rdt ls [-l] <file>")
+	fmt.Fprintln(w, "  rdt ls [-l] <file> [<dir>]")
 }
 
 func printDumpHelp(w io.Writer) {
@@ -108,7 +108,7 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 	if err := lsFlags.Parse(args); err != nil {
 		return 1
 	}
-	if lsFlags.NArg() != 1 {
+	if lsFlags.NArg() < 1 || lsFlags.NArg() > 2 {
 		printLsHelp(stderr)
 		return 1
 	}
@@ -133,7 +133,15 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	entries, err := reader.List()
+	dirPath := strings.Trim(lsFlags.Arg(1), `/\`)
+	var entries []disk.Entry
+	if dirPath == "" {
+		entries, err = reader.List()
+	} else if dl, ok := reader.(disk.DirLister); ok {
+		entries, err = dl.ListDir(dirPath)
+	} else {
+		err = fmt.Errorf("subdirectories are not supported for this disk format")
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "Error listing files in %q: %v\n", diskPath, err)
 		return 1
@@ -159,7 +167,11 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 	var corruptWarnings []string
 	seenWarnings := make(map[string]bool)
 
-	fmt.Fprintf(stdout, "Contents:\n")
+	if dirPath == "" {
+		fmt.Fprintf(stdout, "Contents:\n")
+	} else {
+		fmt.Fprintf(stdout, "Contents of %s/:\n", formatFilename(dirPath))
+	}
 
 	// Show an extra "Native" column when any entry has a platform specific
 	// rendering of its name (e.g. Apple II inverse / flashing characters).

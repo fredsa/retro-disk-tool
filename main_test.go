@@ -259,3 +259,27 @@ func TestRunLsIMG(t *testing.T) {
 		t.Errorf("cat DOSP11/LPMUD.ARJ = code %d, %d bytes; want 0, 264730 bytes", code, stdout.Len())
 	}
 }
+
+func TestRunLsSubdir(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "-l", "test_data/lpmud.img", "DOSP11"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l lpmud.img DOSP11) = %d (stderr: %s)", code, stderr.String())
+	}
+	want := "Contents of DOSP11/:\n  Type     Size Modified            Name\n  -      264730 1993-02-21 22:24:12 LPMUD.ARJ\n"
+	if !strings.Contains(stdout.String(), want) {
+		t.Errorf("stdout missing %q; got:\n%s", want, stdout.String())
+	}
+
+	stdout.Reset()
+	if code := run([]string{"ls", "test_data/lpmud.img", "/.fseventsd/"}, &stdout, &stderr); code != 0 ||
+		!strings.Contains(stdout.String(), "Contents of .fseventsd/:\n  fseventsd-uuid\n") {
+		t.Errorf("ls lpmud.img /.fseventsd/ = code %d; got:\n%s", code, stdout.String())
+	}
+
+	for _, dir := range []string{"DOSP11/LPMUD.ARJ", "NOPE"} {
+		stderr.Reset()
+		if code := run([]string{"ls", "test_data/lpmud.img", dir}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), dir) {
+			t.Errorf("ls lpmud.img %s = code %d, stderr %q; want error", dir, code, stderr.String())
+		}
+	}
+}

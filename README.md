@@ -22,8 +22,8 @@ Apple II images may hold Apple DOS 3.x (13 or 16 sector) or ProDOS volumes. `NIB
 images are decoded from their GCR nibble / bitstream data (5-and-3 and 6-and-2 encoding).
 
 IBM PC images may hold FAT12, FAT16 or FAT32 volumes, including long file names, DOS 1.x floppies without a
-BPB, and MBR partitioned hard disk images. `ls` lists the root directory; `cat` accepts paths such as
-`DOS/README.TXT`, and `dump` shows the full directory tree.
+BPB, and MBR partitioned hard disk images. `ls` and `cat` accept paths such as `DOS` and `DOS/README.TXT`, and
+`dump` shows the full directory tree.
 
 
 # Usage
@@ -33,12 +33,14 @@ rdt -v | --version
 rdt -h | --help
 
 rdt ls -l workbench.adf
+rdt ls -l dos.img DOS
 rdt dump workbench.adf
 rdt cat workbench.adf Clock
 rdt terminal
 ```
 
 `ls` prints the disk image format (`Format:`), the disk label (`Label:`), and the file listing (`Contents:`).
+An optional directory argument lists a subdirectory instead of the root, on formats with subdirectories (IBM PC).
 With `-l` the listing has `Type`, `Size`, `Modified` and `Name` columns. For Apple II (DOS 3.x) and C64 disks, an
 extra `Native` column shows the file name as the original computer displayed it, using Unicode and ANSI styling:
 

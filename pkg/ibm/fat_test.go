@@ -38,6 +38,14 @@ func TestLPMUDImg(t *testing.T) {
 		t.Errorf("DOSP11 ModTime = %s, want 1993-02-21 22:25:26", got)
 	}
 
+	sub, err := d.ListDir("/dosp11/")
+	if err != nil || len(sub) != 1 || sub[0].Name != "LPMUD.ARJ" || sub[0].Size != 264730 {
+		t.Errorf("ListDir(/dosp11/) = %+v, %v; want LPMUD.ARJ", sub, err)
+	}
+	if _, err := d.ListDir("DOSP11/LPMUD.ARJ"); err == nil {
+		t.Error("ListDir(DOSP11/LPMUD.ARJ) succeeded, want not a directory error")
+	}
+
 	content, err := d.ReadFile("dosp11/lpmud.arj")
 	if err != nil || len(content) != 264730 || !bytes.HasPrefix(content, []byte{0x60, 0xEA}) {
 		t.Errorf("ReadFile(dosp11/lpmud.arj) = %d bytes, err %v; want 264730 byte ARJ archive", len(content), err)

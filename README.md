@@ -107,9 +107,10 @@ sample normal, inverse and flashing text, which is useful for checking how `Nati
 go test ./...
 ```
 
-Test disk images live in `images/` and are mostly not part of the repository. Freely downloadable images (listed in
-`images/apple/README.md` and `images/c64/README.md`) are downloaded automatically the first time a test needs them,
-only if missing, and verified by SHA-256; `go run ./internal/testimages/fetch` downloads them all ahead of time.
+Test disk images committed to the repository live in `images/`. Freely downloadable images (listed in
+`downloads/README.md`) are not part of the repository: tests download them into `downloads/` the first time they need
+them, only if missing, and verify them by SHA-256; `go run ./internal/testimages/fetch` downloads them all ahead of
+time.
 
 # Installation
 

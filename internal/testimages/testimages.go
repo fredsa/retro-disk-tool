@@ -1,7 +1,8 @@
-// Package testimages provides disk images for tests. Images that are freely
-// downloadable are not kept in the repository: they are fetched into
-// images/<dir>/ the first time a test needs them, and verified against a
-// pinned size and SHA-256.
+// Package testimages provides disk images for tests. Images committed to the
+// repository live in images/<dir>/. Freely downloadable images are not kept
+// in the repository: they are fetched into downloads/<dir>/ (gitignored) the
+// first time a test needs them, and verified against a pinned size and
+// SHA-256.
 package testimages
 
 import (
@@ -86,37 +87,46 @@ var Manifest = []Image{
 	meatloaf("error info/scan42err.d64", 206114, "1c067f390be458a12a2322fb3a78f6933cc2d18ec2ab14b248c99a97fac73c68"),
 }
 
-// Root returns the repository's images directory.
-func Root() string {
+// repoRoot returns the repository's top directory.
+func repoRoot() string {
 	_, file, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(file), "..", "..", "images")
+	return filepath.Join(filepath.Dir(file), "..", "..")
 }
 
-// Path returns the path of images/<dir>/<name>. An image listed in the
-// Manifest is downloaded first if it is missing; the test is skipped if the
-// image is not available (not downloadable, or the download failed).
+// Root returns the directory of images committed to the repository.
+func Root() string { return filepath.Join(repoRoot(), "images") }
+
+// DownloadRoot returns the directory downloaded images are stored in.
+func DownloadRoot() string { return filepath.Join(repoRoot(), "downloads") }
+
+// DownloadPath returns where a downloadable image is stored.
+func DownloadPath(img Image) string { return filepath.Join(DownloadRoot(), img.Dir, img.Name) }
+
+// Path returns the path of a test image. An image listed in the Manifest
+// is downloads/<dir>/<name>, downloaded first if it is missing; any other
+// image is images/<dir>/<name>. The test is skipped if the image is not
+// available (the download failed, or a local image is absent).
 func Path(t testing.TB, dir, name string) string {
 	t.Helper()
-	path := filepath.Join(Root(), dir, name)
-	if _, err := os.Stat(path); err == nil {
-		return path
-	}
 	for _, img := range Manifest {
 		if img.Dir == dir && img.Name == name {
 			if err := Fetch(img); err != nil {
 				t.Skipf("test image %s/%s is not available: %v", dir, name, err)
 			}
-			return path
+			return DownloadPath(img)
 		}
 	}
-	t.Skipf("test image %s/%s is not available locally and has no download source", dir, name)
-	return ""
+	path := filepath.Join(Root(), dir, name)
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("test image images/%s/%s is not available locally and has no download source", dir, name)
+	}
+	return path
 }
 
 // Fetch downloads an image if it does not exist locally, verifying its size
 // and SHA-256 before moving it into place.
 func Fetch(img Image) error {
-	return fetchTo(filepath.Join(Root(), img.Dir, img.Name), img)
+	return fetchTo(DownloadPath(img), img)
 }
 
 func fetchTo(path string, img Image) error {

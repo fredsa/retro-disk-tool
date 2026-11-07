@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/disk"
 )
 
 func TestRunVersion(t *testing.T) {
@@ -281,5 +284,66 @@ func TestRunLsSubdir(t *testing.T) {
 		if code := run([]string{"ls", "test_data/lpmud.img", dir}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), dir) {
 			t.Errorf("ls lpmud.img %s = code %d, stderr %q; want error", dir, code, stderr.String())
 		}
+	}
+}
+
+func TestRunLsRecursive(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "-l", "-r", "test_data/lpmud.img"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l -r lpmud.img) = %d (stderr: %s)", code, stderr.String())
+	}
+	want := "Contents:\n  Type     Size Modified            Name\n" +
+		"  d           0 1993-02-21 22:25:26 DOSP11/\n" +
+		"  -      264730 1993-02-21 22:24:12 DOSP11/LPMUD.ARJ\n" +
+		"  d           0 2026-01-24 09:57:46 .fseventsd/\n" +
+		"  -          36 2026-01-24 09:58:06 .fseventsd/fseventsd-uuid\n"
+	if !strings.Contains(stdout.String(), want) {
+		t.Errorf("stdout missing %q; got:\n%s", want, stdout.String())
+	}
+}
+
+// fakeDirs is a DirLister over an in-memory directory tree.
+type fakeDirs map[string][]disk.Entry
+
+func (f fakeDirs) ListDir(path string) ([]disk.Entry, error) {
+	if e, ok := f[path]; ok {
+		return e, nil
+	}
+	return nil, fmt.Errorf("%q not found", path)
+}
+
+func TestListRecursive(t *testing.T) {
+	dirs := fakeDirs{
+		"A":   {{Name: "B", IsDir: true}, {Name: "f2"}},
+		"A/B": {{Name: "f3"}},
+		"X/A": {{Name: "f4"}},
+	}
+	got, err := listRecursive(dirs, "", []disk.Entry{{Name: "A", IsDir: true}, {Name: "f1"}}, 0)
+	if err != nil {
+		t.Fatalf("listRecursive error: %v", err)
+	}
+	var names []string
+	for _, e := range got {
+		names = append(names, e.Name)
+	}
+	if w := "A A/B A/B/f3 A/f2 f1"; strings.Join(names, " ") != w {
+		t.Errorf("names = %v, want %s", names, w)
+	}
+
+	// Paths passed to ListDir are relative to the starting directory.
+	got, err = listRecursive(dirs, "X", []disk.Entry{{Name: "A", IsDir: true}}, 0)
+	if err != nil || len(got) != 2 || got[1].Name != "A/f4" {
+		t.Errorf("listRecursive(X) = %+v, %v; want A, A/f4", got, err)
+	}
+
+	// A directory containing itself must not recurse forever.
+	cyclic := fakeDirs{}
+	path := "d"
+	for i := 0; i < maxDirDepth+2; i++ {
+		cyclic[path] = []disk.Entry{{Name: "d", IsDir: true}}
+		path += "/d"
+	}
+	if _, err := listRecursive(cyclic, "", []disk.Entry{{Name: "d", IsDir: true}}, 0); err == nil || !strings.Contains(err.Error(), "too deeply") {
+		t.Errorf("listRecursive(cyclic) error = %v, want nested too deeply", err)
 	}
 }

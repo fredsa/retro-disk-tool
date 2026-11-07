@@ -34,13 +34,15 @@ rdt -h | --help
 
 rdt ls -l workbench.adf
 rdt ls -l dos.img DOS
+rdt ls -l -r dos.img
 rdt dump workbench.adf
 rdt cat workbench.adf Clock
 rdt terminal
 ```
 
 `ls` prints the disk image format (`Format:`), the disk label (`Label:`), and the file listing (`Contents:`).
-An optional directory argument lists a subdirectory instead of the root, on formats with subdirectories (IBM PC).
+An optional directory argument lists a subdirectory instead of the root, on formats with subdirectories (IBM PC),
+and `-r` lists subdirectories recursively, naming each entry by its path.
 With `-l` the listing has `Type`, `Size`, `Modified` and `Name` columns. For Apple II (DOS 3.x) and C64 disks, an
 extra `Native` column shows the file name as the original computer displayed it, using Unicode and ANSI styling:
 

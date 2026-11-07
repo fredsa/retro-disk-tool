@@ -21,7 +21,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  rdt -v | --version")
 	fmt.Fprintln(w, "  rdt -h | --help")
-	fmt.Fprintln(w, "  rdt ls [-l] <file> [<dir>]")
+	fmt.Fprintln(w, "  rdt ls [-l] [-r] <file> [<dir>]")
 	fmt.Fprintln(w, "  rdt dump <file>")
 	fmt.Fprintln(w, "  rdt cat <file> <path>")
 	fmt.Fprintln(w, "  rdt terminal")
@@ -98,6 +98,42 @@ func printFormat(w io.Writer, f *util.FormatInfo) {
 	fmt.Fprintln(w)
 }
 
+// maxDirDepth guards against cyclic directory structures on corrupt disks.
+const maxDirDepth = 32
+
+// listRecursive expands the directories in entries (the contents of dir)
+// depth first, naming each entry by its path relative to dir.
+func listRecursive(dl disk.DirLister, dir string, entries []disk.Entry, depth int) ([]disk.Entry, error) {
+	var out []disk.Entry
+	for _, e := range entries {
+		out = append(out, e)
+		if !e.IsDir {
+			continue
+		}
+		if depth >= maxDirDepth {
+			return out, fmt.Errorf("directory %q nested too deeply", e.Name)
+		}
+		path := e.Name
+		if dir != "" {
+			path = dir + "/" + e.Name
+		}
+		sub, err := dl.ListDir(path)
+		if err != nil {
+			return out, err
+		}
+		sub, err = listRecursive(dl, path, sub, depth+1)
+		for _, s := range sub {
+			s.Name = e.Name + "/" + s.Name
+			s.Native = nil
+			out = append(out, s)
+		}
+		if err != nil {
+			return out, err
+		}
+	}
+	return out, nil
+}
+
 func runLs(args []string, stdout, stderr io.Writer) int {
 	lsFlags := flag.NewFlagSet("ls", flag.ContinueOnError)
 	lsFlags.SetOutput(stderr)
@@ -105,6 +141,7 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		printLsHelp(stderr)
 	}
 	longFlag := lsFlags.Bool("l", false, "use a long listing format")
+	recursiveFlag := lsFlags.Bool("r", false, "list subdirectories recursively")
 	if err := lsFlags.Parse(args); err != nil {
 		return 1
 	}
@@ -141,6 +178,11 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		entries, err = dl.ListDir(dirPath)
 	} else {
 		err = fmt.Errorf("subdirectories are not supported for this disk format")
+	}
+	if err == nil && *recursiveFlag {
+		if dl, ok := reader.(disk.DirLister); ok {
+			entries, err = listRecursive(dl, dirPath, entries, 0)
+		}
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "Error listing files in %q: %v\n", diskPath, err)

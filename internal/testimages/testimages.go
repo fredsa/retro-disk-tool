@@ -40,7 +40,7 @@ var Manifest = []Image{
 		143360, "d1e6fab8d9a25acf6e10ffa15e4120a616898c03613ab87a8e12882b12102543"},
 	{"apple", "DOS 3.2 System Master.woz", "https://mirrors.apple2.org.za/ftp.apple.asimov.net/images/masters/DOS%203.2%20System%20Master.woz",
 		234496, "aae07a4477e8c7a273fc1ca435bf31f3c87ca3fb9927c46922cd8e07c8a0ee33"},
-	{"c64", "EF3 Adrian Toolset.crt", "https://github.com/misterblack1/ef3-c64-tools/raw/refs/heads/master/EF3%20Adrian%20Toolset.crt",
+	{"c64", "EF3 Adrian Toolset.crt", "https://github.com/misterblack1/ef3-c64-tools/raw/dfe7c04b262f9605113ab12b344e064a79ed4695/EF3%20Adrian%20Toolset.crt",
 		623872, "0be17c0212a0dcf1dc30645ba51a7b0291b960da91a00933c0756140603b30e1"},
 	{"apple", "Apple Pascal - Disk 0.po", appleOS + "Apple%20Pascal/Disk%20Images/Apple%20Pascal%20-%20Disk%200.po",
 		143360, "ff5ce078485f98b1990a56c93843f153c1c4f85928ad1bf70e4eaebd354d22fc"},

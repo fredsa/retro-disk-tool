@@ -19,6 +19,7 @@ Atari 8-bit | `ATR` | 90 KiB   | SS 5.25"| 40        | 1     | 18      | 128
 Atari 8-bit | `XFD`, `IMG` | 90 KiB | SS 5.25"| 40     | 1     | 18      | 128
 ZX81     | `P`, `P81` | N/A    | File    | N/A       | N/A   | N/A     | N/A
 TRS-80 Model III | `IMG` | 180 KiB | SS 5.25"| 40   | 1     | 18      | 256
+TRS-80 Model 4 | `IMD` | 180 KiB | SS 5.25"| 40     | 1     | 18      | 256
 IBM PC   | `IMG`, `IMA`, `VFD` | 160 KiB - 2.88 MiB | 5.25" / 3.5" | 40 / 80 | 1 / 2 | 8 - 36 | 512
 
 Apple II images may hold Apple DOS 3.x (13 or 16 sector) or ProDOS volumes. `NIB` and `WOZ` (v1 and v2)
@@ -27,7 +28,12 @@ images are decoded from their GCR nibble / bitstream data (5-and-3 and 6-and-2 e
 ZX81 `P` files are memory images saved from the system variables at $4009; `P81` files add the program name and may
 hold several programs. `cat` returns a program's `P` data, and `dump` shows its system variables and BASIC listing.
 
-TRS-80 Model III images hold TRSDOS 1.3 volumes; files are named `NAME/EXT` (`cat` also accepts `NAME.EXT`).
+TRS-80 images may hold TRSDOS 1.3 (Model III) or LDOS family (LDOS 5, TRSDOS 6, LS-DOS 6) volumes; files are named
+`NAME/EXT` (`cat` also accepts `NAME.EXT`).
+
+`IMD` (ImageDisk) images are decoded into sectors (compressed, deleted data, data error and unavailable sectors are
+handled) and then checked for a TRS-80 or IBM PC filesystem. Every track must have the same layout. `ls` shows the
+comment stored in the image.
 
 Atari raw (headerless) images are recognized by size. Raw dumps of disks written by Atari drives, which store data
 with all bits inverted, are detected and corrected automatically.

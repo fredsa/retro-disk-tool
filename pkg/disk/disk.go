@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/atari"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/c64"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/ibm"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/imd"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/trs80"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/zx81"
@@ -22,8 +24,10 @@ type Entry struct {
 	IsDir   bool
 	Size    uint32
 	ModTime *time.Time
-	Corrupt bool
-	Error   string
+	// DateOnly is set when ModTime has a date but no time of day.
+	DateOnly bool
+	Corrupt  bool
+	Error    string
 	// Native is the platform specific rendering of Name (nil if the
 	// platform has no distinct rendering).
 	Native []util.Glyph
@@ -126,6 +130,8 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 			return &atariAdapter{a: a}, nil
 		}
 		return nil, fmt.Errorf("unrecognized disk image:\n  IBM PC: %v\n  TRS-80: %v\n  Atari:  %v", err, terr, aerr)
+	case ".imd":
+		return openIMD(r, size)
 	case ".xfd":
 		a, err := atari.OpenXFD(r, size)
 		if err != nil {
@@ -596,10 +602,12 @@ func (a *trs80Adapter) List() ([]Entry, error) {
 	res := make([]Entry, len(entries))
 	for i, e := range entries {
 		res[i] = Entry{
-			Name:    e.Name,
-			Size:    e.Size,
-			Corrupt: e.Corrupt,
-			Error:   e.Error,
+			Name:     e.Name,
+			Size:     e.Size,
+			ModTime:  e.ModTime,
+			DateOnly: e.ModTime != nil,
+			Corrupt:  e.Corrupt,
+			Error:    e.Error,
 		}
 	}
 	return res, nil
@@ -629,3 +637,69 @@ func (a *trs80Adapter) Usage() (*Usage, error) {
 func (a *trs80Adapter) ReadFile(path string) ([]byte, error) { return a.d.ReadFile(path) }
 
 func (a *trs80Adapter) Dump(w io.Writer) error { return a.d.Dump(w) }
+
+// openIMD decodes an ImageDisk container and opens the filesystem inside.
+func openIMD(r io.ReaderAt, size int64) (Reader, error) {
+	img, err := imd.Parse(r, size)
+	if err != nil {
+		return nil, err
+	}
+	data, geo, err := img.Linear()
+	if err != nil {
+		return nil, err
+	}
+	version, _, _ := strings.Cut(strings.TrimPrefix(img.Header, "IMD "), ":")
+	desc := fmt.Sprintf("IMD (ImageDisk %s, %s)", version, geo.Mode)
+	wrap := func(inner Reader) Reader { return &imdAdapter{Reader: inner, img: img, desc: desc} }
+
+	var reasons []string
+	if geo.SectorSize == 256 {
+		t, err := trs80.OpenImage(data, geo.Cylinders, geo.Heads, geo.Sectors, desc)
+		if err == nil {
+			return wrap(&trs80Adapter{d: t}), nil
+		}
+		reasons = append(reasons, "TRS-80: "+err.Error())
+	}
+	d, err := ibm.Open(bytes.NewReader(data), int64(len(data)))
+	if err == nil {
+		return wrap(&ibmAdapter{d: d}), nil
+	}
+	reasons = append(reasons, "IBM PC: "+err.Error())
+	return nil, fmt.Errorf("unrecognized filesystem in IMD image (%d cylinders, %d heads, %d x %d byte sectors):\n  %s",
+		geo.Cylinders, geo.Heads, geo.Sectors, geo.SectorSize, strings.Join(reasons, "\n  "))
+}
+
+// imdAdapter presents a filesystem inside an IMD container.
+type imdAdapter struct {
+	Reader
+	img  *imd.Image
+	desc string
+}
+
+func (a *imdAdapter) Format() *util.FormatInfo {
+	f := *a.Reader.Format()
+	f.Image = a.desc
+	f.Comment = a.img.Comment
+	return &f
+}
+
+func (a *imdAdapter) Warnings() []string {
+	w := a.img.Warnings()
+	if wr, ok := a.Reader.(Warner); ok {
+		w = append(w, wr.Warnings()...)
+	}
+	return w
+}
+
+func (a *imdAdapter) ListDir(path string) ([]Entry, error) {
+	if dl, ok := a.Reader.(DirLister); ok {
+		return dl.ListDir(path)
+	}
+	return nil, fmt.Errorf("subdirectories are not supported for this disk format")
+}
+
+func (a *imdAdapter) Dump(w io.Writer) error {
+	a.img.Dump(w)
+	fmt.Fprintln(w)
+	return a.Reader.Dump(w)
+}

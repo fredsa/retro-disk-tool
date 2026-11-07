@@ -95,6 +95,16 @@ func printFormat(w io.Writer, f *util.FormatInfo) {
 		fmt.Fprintf(w, "  Geometry:   %d tracks, %d %s, %s sectors/track, %d bytes/sector\n",
 			f.Tracks, f.Heads, heads, f.Sectors, f.SectorSize)
 	}
+	for i, line := range strings.Split(f.Comment, "\n") {
+		if f.Comment == "" {
+			break
+		}
+		label := "Comment:"
+		if i > 0 {
+			label = ""
+		}
+		fmt.Fprintf(w, "  %-11s %s\n", label, line)
+	}
 	fmt.Fprintln(w)
 }
 
@@ -269,6 +279,9 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 			timeStr := "                   "
 			if entry.ModTime != nil {
 				timeStr = entry.ModTime.Format("2006-01-02 15:04:05")
+				if entry.DateOnly {
+					timeStr = entry.ModTime.Format("2006-01-02         ")
+				}
 			}
 			if hasNative {
 				pad := strings.Repeat(" ", nameWidth-utf8.RuneCountInString(displayName))

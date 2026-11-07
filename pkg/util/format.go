@@ -9,5 +9,6 @@ type FormatInfo struct {
 	Heads      int    // sides / heads
 	Sectors    string // sectors per track, e.g. "16" or "17-21"
 	SectorSize int    // bytes per sector
+	Comment    string // image description stored in the file (may be multi-line)
 }
 

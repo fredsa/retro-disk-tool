@@ -137,6 +137,7 @@ func TestRunLsFormat(t *testing.T) {
 		{"test_data/trs80profileiii.img", []string{"Platform:   TRS-80 Model III", "IMG (raw sector image)", "Filesystem: TRSDOS 1.3", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
 		{"test_data/mfgamania.img", []string{"Platform:   Atari 8-bit", "XFD (raw sector image, 128 byte sectors, all bits inverted)", "Atari DOS 2.0S"}},
 		{"test_data/maxell.img", []string{"Platform:   IBM PC", "IMG (raw sector image; filesystem in the first 720 of 1440 sectors)", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
+		{"test_data/T80M4UPG.IMD", []string{"Platform:   TRS-80 Model 4", "IMD (ImageDisk 1.10, 250 kbps MFM)", "Filesystem: TRSDOS 6.2", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
 		{"test_data/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
 		{"test_data/EF3 Adrian Toolset.crt", []string{"CRT (cartridge image, version 1.0"}},
 	}
@@ -435,5 +436,42 @@ func TestRunLsWarnings(t *testing.T) {
 	stdout.Reset()
 	if code := run([]string{"ls", "test_data/lpmud.img"}, &stdout, &stderr); code != 0 || strings.Contains(stdout.String(), "Warning") || strings.Contains(stdout.String(), "Extra:") {
 		t.Errorf("ls lpmud.img = code %d, want no warnings or extra sectors; got:\n%s", code, stdout.String())
+	}
+}
+
+func TestRunLsIMD(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "-l", "test_data/T80M4UPG.IMD"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l T80M4UPG.IMD) = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{
+		"  Geometry:   40 tracks, 1 head, 18 sectors/track, 256 bytes/sector\n" +
+			"  Comment:    700-2298 MODEL 4/4P\n" +
+			"              TRSDOS UPGRADE\n" +
+			"              VER. 06.02.00 to 06.02.01\n\n",
+		"Label:\n  UPGRADE6\n",
+		"  -        1280                     BOOT/SYS\n",
+		"  -         503 1985-06-02          MAKE621/JCL\n",
+		"  -        8821 1985-06-02          MAKE621A/JCL\n",
+		"  Total:  100.0%    720 sectors (184,320 bytes)",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+
+	stdout.Reset()
+	if code := run([]string{"dump", "test_data/T80M4UPG.IMD"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(dump) = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{"ImageDisk (IMD) Container", "Deleted data marks on cylinders: 20", "TRS-80 Model 4 TRSDOS 6.2 Disk Image Dump", "--0 MAKE621/JCL"} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("dump missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+
+	stdout.Reset()
+	if code := run([]string{"cat", "test_data/T80M4DOS.IMD", "BASIC/CMD"}, &stdout, &stderr); code != 0 || stdout.Len() != 21584 {
+		t.Errorf("cat BASIC/CMD = code %d, %d bytes", code, stdout.Len())
 	}
 }

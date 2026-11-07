@@ -8,7 +8,7 @@ import (
 )
 
 func TestProDOS(t *testing.T) {
-	const path = "../../test_data/ProDOS_2_4_3.po"
+	const path = "../../images/ProDOS_2_4_3.po"
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", path, err)
@@ -62,7 +62,7 @@ func TestProDOS(t *testing.T) {
 }
 
 func TestDOS31MasterD13(t *testing.T) {
-	const path = "../../test_data/Apple DOS 3.1 Master.d13"
+	const path = "../../images/Apple DOS 3.1 Master.d13"
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", path, err)
@@ -117,7 +117,7 @@ func TestDOS31MasterD13(t *testing.T) {
 }
 
 func TestDOS31MasterNIB(t *testing.T) {
-	const path = "../../test_data/DOS 3.1 Master.nib"
+	const path = "../../images/DOS 3.1 Master.nib"
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", path, err)
@@ -168,7 +168,7 @@ func TestDOS31MasterNIB(t *testing.T) {
 }
 
 func TestDOS32SystemMasterWOZ(t *testing.T) {
-	const path = "../../test_data/DOS 3.2 System Master.woz"
+	const path = "../../images/DOS 3.2 System Master.woz"
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", path, err)

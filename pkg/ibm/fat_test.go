@@ -10,7 +10,7 @@ import (
 )
 
 func TestLPMUDImg(t *testing.T) {
-	const path = "../../test_data/lpmud.img"
+	const path = "../../images/lpmud.img"
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", path, err)
@@ -126,7 +126,7 @@ func TestDOS1x(t *testing.T) {
 }
 
 func TestBadSectors(t *testing.T) {
-	raw, err := os.ReadFile("../../test_data/maxell.img")
+	raw, err := os.ReadFile("../../images/maxell.img")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestBadSectors(t *testing.T) {
 	}
 
 	// A file with an unreadable sector is reported as corrupt.
-	img, err := os.ReadFile("../../test_data/lpmud.img")
+	img, err := os.ReadFile("../../images/lpmud.img")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestBadSectors(t *testing.T) {
 }
 
 func TestSizeMismatch(t *testing.T) {
-	img, err := os.ReadFile("../../test_data/lpmud.img")
+	img, err := os.ReadFile("../../images/lpmud.img")
 	if err != nil {
 		t.Fatal(err)
 	}

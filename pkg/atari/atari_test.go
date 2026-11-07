@@ -8,7 +8,7 @@ import (
 )
 
 func TestDOSATR(t *testing.T) {
-	const path = "../../test_data/dos.atr"
+	const path = "../../images/dos.atr"
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", path, err)

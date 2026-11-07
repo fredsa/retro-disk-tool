@@ -8,7 +8,7 @@ import (
 )
 
 func TestProfileIII(t *testing.T) {
-	const path = "../../test_data/trs80profileiii.img"
+	const path = "../../images/trs80profileiii.img"
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read %s: %v", path, err)

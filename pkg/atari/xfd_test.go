@@ -10,7 +10,7 @@ import (
 )
 
 func TestInvertedXFD(t *testing.T) {
-	raw, err := os.ReadFile("../../test_data/mfgamania.img")
+	raw, err := os.ReadFile("../../images/mfgamania.img")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestOpenXFDRejects(t *testing.T) {
 }
 
 func TestATRSize(t *testing.T) {
-	raw, err := os.ReadFile("../../test_data/mfgamania.img")
+	raw, err := os.ReadFile("../../images/mfgamania.img")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,7 +8,7 @@ import (
 )
 
 func TestOpenAndListRoot(t *testing.T) {
-	const testFile = "../../test_data/Workbench v1.0 (1985)(Commodore).adf"
+	const testFile = "../../images/Workbench v1.0 (1985)(Commodore).adf"
 	f, err := os.Open(testFile)
 	if err != nil {
 		t.Fatalf("failed to open test file: %v", err)

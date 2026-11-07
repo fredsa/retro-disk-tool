@@ -30,7 +30,7 @@ func TestModel4Images(t *testing.T) {
 		{"T80M4UPG.IMD", "700-2298 MODEL 4/4P\nTRSDOS UPGRADE\nVER. 06.02.00 to 06.02.01", 18, 12},
 		{"T80M4DOS.IMD", "Model 4 System Diskette\nMODEL 4 TRSDOS and BASIC interpreter\nCAT NO. 26-0316\nVersion 6", 18, 1},
 	} {
-		img, _ := parseFile(t, "../../test_data/"+tc.file)
+		img, _ := parseFile(t, "../../images/"+tc.file)
 		if !strings.HasPrefix(img.Header, "IMD 1.10: 15/01/2006") || img.Comment != tc.comment {
 			t.Errorf("%s: header %q, comment %q", tc.file, img.Header, img.Comment)
 		}
@@ -58,7 +58,7 @@ func TestModel4Images(t *testing.T) {
 }
 
 func TestParseRejects(t *testing.T) {
-	_, raw := parseFile(t, "../../test_data/T80M4UPG.IMD")
+	_, raw := parseFile(t, "../../images/T80M4UPG.IMD")
 	for name, data := range map[string][]byte{
 		"trailing byte":  append(append([]byte{}, raw...), 0),
 		"truncated":      raw[:len(raw)-1],

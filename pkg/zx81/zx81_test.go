@@ -9,7 +9,7 @@ import (
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
 
-const kong = "../../test_data/ZX81_Kong (Paul Farrow 2010) [V1-01]"
+const kong = "../../images/ZX81_Kong (Paul Farrow 2010) [V1-01]"
 
 func open(t *testing.T, path string) *File {
 	t.Helper()

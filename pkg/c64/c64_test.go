@@ -9,7 +9,7 @@ import (
 )
 
 func TestD64(t *testing.T) {
-	const d64Path = "../../test_data/JeepersCreepersPlus1-UNK.d64"
+	const d64Path = "../../images/JeepersCreepersPlus1-UNK.d64"
 	f, err := os.Open(d64Path)
 	if err != nil {
 		t.Fatalf("failed to open d64: %v", err)
@@ -68,7 +68,7 @@ func TestD64(t *testing.T) {
 }
 
 func TestD64CorruptDirectory(t *testing.T) {
-	const d64Path = "../../test_data/64 games 21.D64"
+	const d64Path = "../../images/64 games 21.D64"
 	f, err := os.Open(d64Path)
 	if err != nil {
 		t.Fatalf("failed to open d64: %v", err)
@@ -112,7 +112,7 @@ func TestD64CorruptDirectory(t *testing.T) {
 }
 
 func TestD64Header(t *testing.T) {
-	const d64Path = "../../test_data/och0528v35.d64"
+	const d64Path = "../../images/och0528v35.d64"
 	f, err := os.Open(d64Path)
 	if err != nil {
 		t.Fatalf("failed to open d64: %v", err)
@@ -176,7 +176,7 @@ func TestD64Header(t *testing.T) {
 }
 
 func TestPRG(t *testing.T) {
-	const prgPath = "../../test_data/flipandflop.prg"
+	const prgPath = "../../images/flipandflop.prg"
 	f, err := os.Open(prgPath)
 	if err != nil {
 		t.Fatalf("failed to open prg: %v", err)
@@ -209,7 +209,7 @@ func TestPRG(t *testing.T) {
 }
 
 func TestCRT(t *testing.T) {
-	const crtPath = "../../test_data/EF3 Adrian Toolset.crt"
+	const crtPath = "../../images/EF3 Adrian Toolset.crt"
 	f, err := os.Open(crtPath)
 	if err != nil {
 		t.Fatalf("failed to open crt: %v", err)

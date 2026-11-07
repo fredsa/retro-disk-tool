@@ -11,7 +11,7 @@ import (
 
 func openIMD(t *testing.T, name string) (*Disk, []byte) {
 	t.Helper()
-	raw, err := os.ReadFile("../../test_data/" + name)
+	raw, err := os.ReadFile("../../images/" + name)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -126,6 +126,7 @@ func TestRunLsFormat(t *testing.T) {
 		{"test_data/Workbench v1.0 (1985)(Commodore).adf", []string{"Platform:   Amiga", "Amiga OFS", "80 tracks, 2 heads, 11 sectors/track, 512 bytes/sector"}},
 		{"test_data/och0528v35.d64", []string{"Platform:   Commodore 64", "D64 (1541 disk image, 35 tracks)", "35 tracks, 1 head, 17-21 sectors/track, 256 bytes/sector"}},
 		{"test_data/dos.atr", []string{"Platform:   Atari 8-bit", "ATR (disk image", "Atari DOS 2.0S", "40 tracks, 1 head, 18 sectors/track, 128 bytes/sector"}},
+		{"test_data/lpmud.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
 		{"test_data/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
 		{"test_data/EF3 Adrian Toolset.crt", []string{"CRT (cartridge image, version 1.0"}},
 	}
@@ -232,5 +233,29 @@ func TestRunLsATR(t *testing.T) {
 	stdout.Reset()
 	if code := run([]string{"cat", "test_data/dos.atr", "AUTORUN.SYS"}, &stdout, &stderr); code != 0 || stdout.Len() != 88 {
 		t.Errorf("cat AUTORUN.SYS = code %d, %d bytes; want 0, 88 bytes", code, stdout.Len())
+	}
+}
+
+func TestRunLsIMG(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "-l", "test_data/lpmud.img"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l lpmud.img) = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{
+		"  d           0 1993-02-21 22:25:26 DOSP11/\n",
+		"  d           0 2026-01-24 09:57:46 .fseventsd/\n",
+		"Formatted:   720 KiB (737,280 bytes)",
+		"Unformatted:    1 MB (1,000,000 bytes)",
+		"In-use:  37.6%    542 sectors",
+		"Free:    62.4%    898 sectors",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+
+	stdout.Reset()
+	if code := run([]string{"cat", "test_data/lpmud.img", "DOSP11/LPMUD.ARJ"}, &stdout, &stderr); code != 0 || stdout.Len() != 264730 {
+		t.Errorf("cat DOSP11/LPMUD.ARJ = code %d, %d bytes; want 0, 264730 bytes", code, stdout.Len())
 	}
 }

@@ -16,9 +16,14 @@ Apple II | `PO`      | 140 KiB  | SS 5.25"| 35        | 1     | 16      | 256
 Apple II | `NIB`     | 140 KiB  | SS 5.25"| 35        | 1     | 13 / 16 | 256
 Apple II | `WOZ`     | 140 KiB  | SS 5.25"| 35        | 1     | 13 / 16 | 256
 Atari 8-bit | `ATR` | 90 KiB   | SS 5.25"| 40        | 1     | 18      | 128
+IBM PC   | `IMG`, `IMA`, `VFD` | 160 KiB - 2.88 MiB | 5.25" / 3.5" | 40 / 80 | 1 / 2 | 8 - 36 | 512
 
 Apple II images may hold Apple DOS 3.x (13 or 16 sector) or ProDOS volumes. `NIB` and `WOZ` (v1 and v2)
 images are decoded from their GCR nibble / bitstream data (5-and-3 and 6-and-2 encoding).
+
+IBM PC images may hold FAT12, FAT16 or FAT32 volumes, including long file names, DOS 1.x floppies without a
+BPB, and MBR partitioned hard disk images. `ls` lists the root directory; `cat` accepts paths such as
+`DOS/README.TXT`, and `dump` shows the full directory tree.
 
 
 # Usage

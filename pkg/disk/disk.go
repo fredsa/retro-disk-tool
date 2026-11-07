@@ -11,6 +11,7 @@ import (
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/apple2"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/atari"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/c64"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/ibm"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
 
@@ -91,6 +92,12 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 			return nil, err
 		}
 		return &atariAdapter{a: a}, nil
+	case ".img", ".ima", ".vfd":
+		d, err := ibm.Open(r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &ibmAdapter{d: d}, nil
 	case ".po", ".do", ".dsk", ".d13", ".nib", ".woz":
 		img, err := apple2.Open(filename, r, size)
 		if err != nil {
@@ -436,3 +443,61 @@ func (a *atariAdapter) Usage() (*Usage, error) {
 func (a *atariAdapter) ReadFile(path string) ([]byte, error) { return a.a.ReadFile(path) }
 
 func (a *atariAdapter) Dump(w io.Writer) error { return a.a.Dump(w) }
+
+type ibmAdapter struct {
+	d *ibm.Disk
+}
+
+func (a *ibmAdapter) Format() *util.FormatInfo { return a.d.Format() }
+
+func (a *ibmAdapter) Header() *DiskHeader {
+	label := a.d.Label()
+	if label == "" {
+		return nil
+	}
+	return &DiskHeader{Name: label}
+}
+
+func (a *ibmAdapter) List() ([]Entry, error) {
+	entries, err := a.d.List()
+	if err != nil {
+		return nil, err
+	}
+	res := make([]Entry, len(entries))
+	for i, e := range entries {
+		res[i] = Entry{
+			Name:    e.Name,
+			IsDir:   e.IsDir,
+			Size:    e.Size,
+			ModTime: e.ModTime,
+			Corrupt: e.Corrupt,
+			Error:   e.Error,
+		}
+	}
+	return res, nil
+}
+
+func (a *ibmAdapter) Usage() (*Usage, error) {
+	u, err := a.d.Usage()
+	if err != nil {
+		return nil, err
+	}
+	return &Usage{
+		FormattedCapacity:   u.FormattedCapacity,
+		FormattedDesc:       u.FormattedDesc,
+		UnformattedCapacity: u.UnformattedCapacity,
+		UnformattedDesc:     u.UnformattedDesc,
+		SectorSize:          u.SectorSize,
+		TotalSectors:        u.TotalSectors,
+		InUseSectors:        u.InUseSectors,
+		FreeSectors:         u.FreeSectors,
+		TotalBytes:          u.TotalBytes,
+		InUseBytes:          u.InUseBytes,
+		FreeBytes:           u.FreeBytes,
+		HasUsage:            true,
+	}, nil
+}
+
+func (a *ibmAdapter) ReadFile(path string) ([]byte, error) { return a.d.ReadFile(path) }
+
+func (a *ibmAdapter) Dump(w io.Writer) error { return a.d.Dump(w) }

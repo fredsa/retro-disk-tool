@@ -617,10 +617,10 @@ func TestRunLsC64(t *testing.T) {
 }
 
 func TestRunLsADF(t *testing.T) {
-	const path = "images/amiga/simple.adf"
+	const path = "images/amiga/ofs.adf"
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"ls", "-l", path}, &stdout, &stderr); code != 0 {
-		t.Fatalf("ls -l simple.adf = %d (stderr: %s)", code, stderr.String())
+		t.Fatalf("ls -l ofs.adf = %d (stderr: %s)", code, stderr.String())
 	}
 	for _, w := range []string{
 		"Platform:   Amiga\n  Image:      ADF (Amiga Disk File, raw sector image)\n  Filesystem: Amiga OFS\n",
@@ -635,6 +635,23 @@ func TestRunLsADF(t *testing.T) {
 		if !strings.Contains(stdout.String(), w) {
 			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
 		}
+	}
+
+	stdout.Reset()
+	if code := run([]string{"ls", "-l", "-r", path}, &stdout, &stderr); code != 0 {
+		t.Fatalf("ls -l -r ofs.adf = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{
+		"  d           0 2026-11-07 14:27:25 level1/level2/\n",
+		"  -          21 2026-11-07 14:26:53 Trashcan/note2\n",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("ls -r stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+	stdout.Reset()
+	if code := run([]string{"cat", path, "Trashcan/note2"}, &stdout, &stderr); code != 0 || stdout.Len() != 21 {
+		t.Errorf("cat Trashcan/note2 = code %d, %d bytes", code, stdout.Len())
 	}
 
 	stdout.Reset()

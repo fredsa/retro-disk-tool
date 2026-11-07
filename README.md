@@ -100,6 +100,16 @@ extra `Native` column shows the file name as the original computer displayed it,
 `terminal` prints what `rdt` can detect about your terminal (platform, emulator, ANSI support) and shows
 sample normal, inverse and flashing text, which is useful for checking how `Native` names will look.
 
+# Testing
+
+```
+go test ./...
+```
+
+Test disk images live in `images/` and are mostly not part of the repository. Freely downloadable images (e.g. the
+Apple II images listed in `images/apple/README.md`) are downloaded automatically the first time a test needs them,
+only if missing, and verified by SHA-256; `go run ./internal/testimages/fetch` downloads them all ahead of time.
+
 # Installation
 
 1. Download and install Go: https://go.dev/doc/install

@@ -2,25 +2,31 @@ package apple2_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/internal/testimages"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/apple2"
 )
 
-func TestProDOS(t *testing.T) {
-	const path = "../../images/ProDOS_2_4_3.po"
+// openImage opens images/apple/<name>, downloading it first if needed.
+func openImage(t *testing.T, name string) (apple2.Image, error) {
+	t.Helper()
+	path := testimages.Path(t, "apple", name)
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", path, err)
 	}
-	defer f.Close()
-
+	t.Cleanup(func() { f.Close() })
 	fi, err := f.Stat()
 	if err != nil {
 		t.Fatalf("failed to stat %s: %v", path, err)
 	}
+	return apple2.Open(path, f, fi.Size())
+}
 
-	img, err := apple2.Open(path, f, fi.Size())
+func TestProDOS(t *testing.T) {
+	img, err := openImage(t, "ProDOS_2_4_3.po")
 	if err != nil {
 		t.Fatalf("apple2.Open failed: %v", err)
 	}
@@ -62,19 +68,7 @@ func TestProDOS(t *testing.T) {
 }
 
 func TestDOS31MasterD13(t *testing.T) {
-	const path = "../../images/Apple DOS 3.1 Master.d13"
-	f, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("failed to open %s: %v", path, err)
-	}
-	defer f.Close()
-
-	fi, err := f.Stat()
-	if err != nil {
-		t.Fatalf("failed to stat %s: %v", path, err)
-	}
-
-	img, err := apple2.Open(path, f, fi.Size())
+	img, err := openImage(t, "Apple DOS 3.1 Master.d13")
 	if err != nil {
 		t.Fatalf("apple2.Open failed: %v", err)
 	}
@@ -117,19 +111,7 @@ func TestDOS31MasterD13(t *testing.T) {
 }
 
 func TestDOS31MasterNIB(t *testing.T) {
-	const path = "../../images/DOS 3.1 Master.nib"
-	f, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("failed to open %s: %v", path, err)
-	}
-	defer f.Close()
-
-	fi, err := f.Stat()
-	if err != nil {
-		t.Fatalf("failed to stat %s: %v", path, err)
-	}
-
-	img, err := apple2.Open(path, f, fi.Size())
+	img, err := openImage(t, "Apple DOS 3.1 Master.nib")
 	if err != nil {
 		t.Fatalf("apple2.Open failed: %v", err)
 	}
@@ -168,19 +150,7 @@ func TestDOS31MasterNIB(t *testing.T) {
 }
 
 func TestDOS32SystemMasterWOZ(t *testing.T) {
-	const path = "../../images/DOS 3.2 System Master.woz"
-	f, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("failed to open %s: %v", path, err)
-	}
-	defer f.Close()
-
-	fi, err := f.Stat()
-	if err != nil {
-		t.Fatalf("failed to stat %s: %v", path, err)
-	}
-
-	img, err := apple2.Open(path, f, fi.Size())
+	img, err := openImage(t, "DOS 3.2 System Master.woz")
 	if err != nil {
 		t.Fatalf("apple2.Open failed: %v", err)
 	}
@@ -218,5 +188,65 @@ func TestDOS32SystemMasterWOZ(t *testing.T) {
 	}
 	if len(content) != 138 {
 		t.Errorf("len(HELLO) = %d, want 138", len(content))
+	}
+}
+
+func TestDOS33August1980(t *testing.T) {
+	img, err := openImage(t, "Apple DOS 3.3 August 1980.dsk")
+	if err != nil {
+		t.Fatalf("apple2.Open failed: %v", err)
+	}
+	if f := img.Format(); f.Filesystem != "Apple DOS 3.3" || !strings.HasPrefix(f.Image, "DSK (raw sector image, DOS 3.3 sector order)") || f.Sectors != "16" {
+		t.Errorf("Format() = %+v", f)
+	}
+	if hdr := img.Header(); hdr == nil || hdr.Name != "DISK VOLUME 254" {
+		t.Errorf("Header() = %+v, want Name=DISK VOLUME 254", hdr)
+	}
+	entries, err := img.List()
+	if err != nil {
+		t.Fatalf("List() failed: %v", err)
+	}
+	if len(entries) != 27 {
+		t.Fatalf("len(entries) = %d, want 27", len(entries))
+	}
+	for i, w := range []struct {
+		name string
+		size uint32
+	}{{"HELLO", 1139}, {"APPLE PROMS", 382}, {"INTBASIC", 12292}, {"RETRIEVE TEXT", 333}} {
+		found := false
+		for _, e := range entries {
+			if e.Name == w.name {
+				found = true
+				if e.Size != w.size || e.Corrupt {
+					t.Errorf("%d: %s = %+v, want %d bytes", i, w.name, e, w.size)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s not listed", w.name)
+		}
+	}
+	usage, err := img.Usage()
+	if err != nil {
+		t.Fatalf("Usage() failed: %v", err)
+	}
+	if usage.TotalSectors != 560 || usage.InUseSectors != 511 || usage.FreeSectors != 49 {
+		t.Errorf("Usage() = %+v, want Total=560, InUse=511, Free=49", usage)
+	}
+	if content, err := img.ReadFile("HELLO"); err != nil || len(content) != 1139 {
+		t.Errorf("ReadFile(HELLO) = %d bytes, %v; want 1139", len(content), err)
+	}
+}
+
+// Apple Pascal and CP/M (CP/AM) disks are not supported yet: the Pascal
+// filesystem is not recognized and 800 KiB images are rejected by size.
+func TestUnsupportedFilesystems(t *testing.T) {
+	for _, tc := range []struct{ name, want string }{
+		{"Apple Pascal - Disk 0.po", "unrecognized Apple II 140K disk filesystem"},
+		{"CPAM 3.5.po", "invalid Apple II disk size: 819200 bytes"},
+	} {
+		if _, err := openImage(t, tc.name); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("open %s: error %v, want %q", tc.name, err, tc.want)
+		}
 	}
 }

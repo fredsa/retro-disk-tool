@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/internal/testimages"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/disk"
 )
 
@@ -75,22 +76,6 @@ func TestRunLs(t *testing.T) {
 			args:        []string{"ls", "-l", "images/64 games 21.D64"},
 			wantContain: []string{"Label:\n  \"64 GAMES 21\" GL,2A\n", "Contents:\n  Type     Size Modified            Name", "Native\n", `"V▂π🭻▂πππππππππππ"`, "  -        1798                     MENU", "  ?        8193", "Warning: broken directory on disk (track 18, sector 7: 23, READ ERROR (checksum error in data block))"},
 		},
-		{
-			args:        []string{"ls", "-l", "images/ProDOS_2_4_3.po"},
-			wantContain: []string{"Label:\n  /PRODOS.2.4.3\n", "Contents:\n  Type     Size Modified            Name\n", "  -       17128 2023-12-30 02:43:00 PRODOS", "  -         999 2023-12-30 02:43:00 README", "Formatted:   140 KiB (143,360 bytes)", "In-use:  90.7%    508 sectors"},
-		},
-		{
-			args:        []string{"ls", "-l", "images/Apple DOS 3.1 Master.d13"},
-			wantContain: []string{"Label:\n  \"DISK VOLUME 254\"\n", "Contents:\n  Type     Size Modified            Name", "Native\n", `\x08\x05\x0C\x0C\x0F HELLO`, "  -       10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
-		},
-		{
-			args:        []string{"ls", "-l", "images/DOS 3.1 Master.nib"},
-			wantContain: []string{"Label:\n  \"DISK VOLUME 254\"\n", "Contents:\n  Type     Size Modified            Name", "Native\n", `\x08\x05\x0C\x0C\x0F HELLO`, "  -       10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"},
-		},
-		{
-			args:        []string{"ls", "-l", "images/DOS 3.2 System Master.woz"},
-			wantContain: []string{"Label:\n  \"DISK VOLUME 254\"\n", "Contents:\n  Type     Size Modified            Name\n", "  -         138                     HELLO", "  -       13175                     APPLE-TREK", "  -        6629                     PINBALL", "113 KiB (116,480 bytes)", "In-use:  99.3%    452 sectors", "Free:     0.7%      3 sectors"},
-		},
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer
@@ -123,11 +108,6 @@ func TestRunLsFormat(t *testing.T) {
 		file        string
 		wantContain []string
 	}{
-		{"images/DOS 3.2 System Master.woz", []string{"Format:\n  Platform:   Apple II\n", "WOZ2 (bitstream image", "Filesystem: Apple DOS 3.2", "35 tracks, 1 head, 13 sectors/track, 256 bytes/sector"}},
-		{"images/DOS 3.1 Master.nib", []string{"NIB (nibblized image", "Apple DOS 3.1"}},
-		{"images/Apple DOS 3.1 Master.d13", []string{"D13 (raw sector image, 13-sector)", "13 sectors/track"}},
-		{"images/ProDOS_2_4_3.po", []string{"PO (raw sector image, ProDOS sector order)", "Filesystem: ProDOS", "16 sectors/track"}},
-		{"images/aptestdos.do", []string{"DO (raw sector image, DOS 3.3 sector order)", "Apple DOS 3.3"}},
 		{"images/Workbench v1.0 (1985)(Commodore).adf", []string{"Platform:   Amiga", "Amiga OFS", "80 tracks, 2 heads, 11 sectors/track, 512 bytes/sector"}},
 		{"images/och0528v35.d64", []string{"Platform:   Commodore 64", "D64 (1541 disk image, 35 tracks)", "35 tracks, 1 head, 17-21 sectors/track, 256 bytes/sector"}},
 		{"images/dos.atr", []string{"Platform:   Atari 8-bit", "ATR (disk image", "Atari DOS 2.0S", "40 tracks, 1 head, 18 sectors/track, 128 bytes/sector"}},
@@ -521,5 +501,63 @@ func TestRunLsC64Containers(t *testing.T) {
 	if code := run([]string{"ls", "images/c64/40 tracks/lotus esprit turbo challenge (1992)(gremlin) [s1].d64"}, &stdout, &stderr); code != 1 ||
 		!strings.Contains(stderr.String(), "invalid D64 disk size: 808 bytes") {
 		t.Errorf("ls of an HTML page saved as .d64 = code %d, stderr %q", code, stderr.String())
+	}
+}
+
+// TestRunLsApple lists Apple II images from images/apple, downloading them
+// first if needed. Images without a download source are skipped if absent.
+func TestRunLsApple(t *testing.T) {
+	tests := []struct {
+		name        string
+		wantContain []string
+	}{
+		{"Apple DOS 3.1 Master.d13", []string{"D13 (raw sector image, 13-sector)", "Filesystem: Apple DOS 3.1", "35 tracks, 1 head, 13 sectors/track, 256 bytes/sector",
+			"Label:\n  \"DISK VOLUME 254\"\n", "Contents:\n  Type     Size Modified            Name", "Native\n", `\x08\x05\x0C\x0C\x0F HELLO`,
+			"  -       10704                     APPLESOFT", "113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"}},
+		{"Apple DOS 3.1 Master.nib", []string{"NIB (nibblized image", "Filesystem: Apple DOS 3.1",
+			"Label:\n  \"DISK VOLUME 254\"\n", `\x08\x05\x0C\x0C\x0F HELLO`, "  -       10704                     APPLESOFT",
+			"113 KiB (116,480 bytes)", "In-use:  39.3%    179 sectors", "Free:    60.7%    276 sectors"}},
+		{"Apple DOS 3.3 August 1980.dsk", []string{"Format:\n  Platform:   Apple II\n", "DSK (raw sector image, DOS 3.3 sector order)", "Filesystem: Apple DOS 3.3",
+			"35 tracks, 1 head, 16 sectors/track, 256 bytes/sector", "  -        1139                     HELLO", "  -         333                     \"RETRIEVE TEXT\"",
+			"Formatted:   140 KiB (143,360 bytes)", "In-use:  91.2%    511 sectors", "Free:     8.8%     49 sectors"}},
+		{"ProDOS_2_4_3.po", []string{"PO (raw sector image, ProDOS sector order)", "Filesystem: ProDOS", "16 sectors/track",
+			"Label:\n  /PRODOS.2.4.3\n", "  -       17128 2023-12-30 02:43:00 PRODOS", "  -         999 2023-12-30 02:43:00 README",
+			"Formatted:   140 KiB (143,360 bytes)", "In-use:  90.7%    508 sectors"}},
+		{"DOS 3.2 System Master.woz", []string{"WOZ2 (bitstream image", "Filesystem: Apple DOS 3.2", "35 tracks, 1 head, 13 sectors/track, 256 bytes/sector",
+			"Label:\n  \"DISK VOLUME 254\"\n", "  -         138                     HELLO", "  -       13175                     APPLE-TREK",
+			"  -        6629                     PINBALL", "In-use:  99.3%    452 sectors", "Free:     0.7%      3 sectors"}},
+		{"aptestdos.do", []string{"DO (raw sector image, DOS 3.3 sector order)", "Apple DOS 3.3"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := testimages.Path(t, "apple", tt.name)
+			var stdout, stderr bytes.Buffer
+			if code := run([]string{"ls", "-l", path}, &stdout, &stderr); code != 0 {
+				t.Fatalf("ls -l %s = %d (stderr: %s)", tt.name, code, stderr.String())
+			}
+			for _, w := range tt.wantContain {
+				if !strings.Contains(stdout.String(), w) {
+					t.Errorf("ls -l %s stdout missing %q; got:\n%s", tt.name, w, stdout.String())
+				}
+			}
+		})
+	}
+
+	// Not supported yet: Apple Pascal and CP/AM (800 KiB) disks.
+	for name, want := range map[string]string{
+		"Apple Pascal - Disk 0.po": "unrecognized Apple II 140K disk filesystem",
+		"CPAM 3.5.po":              "invalid Apple II disk size: 819200 bytes",
+	} {
+		t.Run(name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			if code := run([]string{"ls", testimages.Path(t, "apple", name)}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), want) {
+				t.Errorf("ls %s = code %d, stderr %q; want error %q", name, code, stderr.String(), want)
+			}
+		})
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"cat", testimages.Path(t, "apple", "Apple DOS 3.1 Master.d13"), "COPY"}, &stdout, &stderr); code != 0 || stdout.Len() != 1407 {
+		t.Errorf("cat COPY = code %d, %d bytes; want 1407", code, stdout.Len())
 	}
 }

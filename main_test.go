@@ -615,3 +615,34 @@ func TestRunLsC64(t *testing.T) {
 		}
 	}
 }
+
+func TestRunLsADF(t *testing.T) {
+	const path = "images/amiga/simple.adf"
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "-l", path}, &stdout, &stderr); code != 0 {
+		t.Fatalf("ls -l simple.adf = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{
+		"Platform:   Amiga\n  Image:      ADF (Amiga Disk File, raw sector image)\n  Filesystem: Amiga OFS\n",
+		"Label:\n  Amiga\n",
+		"Contents:\n  Type     Size Modified            Name\n  -          42 2026-11-07 14:26:58 .info\n",
+		"  d           0 2026-11-07 14:27:59 level1/\n",
+		"  -          21 2026-11-07 14:23:59 note\n",
+		"Formatted:   880 KiB (901,120 bytes)",
+		"In-use:   1.6%     28 sectors (14,336 bytes)",
+		"Free:    98.4%  1,732 sectors (886,784 bytes)",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+
+	stdout.Reset()
+	if code := run([]string{"cat", path, "note"}, &stdout, &stderr); code != 0 || stdout.String() != "test\x1a\x00d\x00\n\x01,\x00dnote-cat" {
+		t.Errorf("cat note = code %d, %q", code, stdout.String())
+	}
+	stdout.Reset()
+	if code := run([]string{"dump", path}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "Root Entries (9):") {
+		t.Errorf("dump = code %d; got:\n%s", code, stdout.String())
+	}
+}

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-const testDir = "../../test_data/test/"
+const testDir = "../../test_data/c64/"
 
 func readTest(t *testing.T, name string) []byte {
 	t.Helper()

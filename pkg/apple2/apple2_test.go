@@ -158,61 +158,63 @@ func TestDOS31MasterNIB(t *testing.T) {
 	}
 }
 
-func TestWOZ(t *testing.T) {
-	// A WOZ2 bitstream image of a DOS 3.3 disk (Triple-Dump).
-	img, err := openImage(t, "Triple-Dump.woz")
+func TestDOS32SystemMasterWOZ(t *testing.T) {
+	// A WOZ2 bitstream image of a 13 sector DOS 3.2 disk.
+	img, err := openImage(t, "DOS 3.2 System Master.woz")
 	if err != nil {
 		t.Fatalf("apple2.Open failed: %v", err)
 	}
-	if f := img.Format(); f.Image != `WOZ2 (bitstream image, created by "Applesauce v1.38")` || f.Filesystem != "Apple DOS 3.3" || f.Sectors != "16" {
+	if f := img.Format(); f.Image != `WOZ2 (bitstream image, created by "Applesauce v1.1")` || f.Filesystem != "Apple DOS 3.2" || f.Sectors != "13" {
 		t.Errorf("Format() = %+v", f)
 	}
+
+	hdr := img.Header()
+	if hdr == nil || hdr.Name != "DISK VOLUME 254" {
+		t.Errorf("Header() = %+v, want Name=DISK VOLUME 254", hdr)
+	}
+
 	entries, err := img.List()
 	if err != nil {
 		t.Fatalf("List() failed: %v", err)
 	}
-	if len(entries) != 86 {
-		t.Fatalf("len(entries) = %d, want 86", len(entries))
+	if len(entries) != 14 {
+		t.Fatalf("len(entries) = %d, want 14", len(entries))
 	}
-	if entries[0].Name != "STARTUP" || entries[0].Size != 2013 {
-		t.Errorf("entries[0] = %+v, want STARTUP (2013 bytes)", entries[0])
+	if entries[0].Name != "HELLO" || entries[0].Size != 138 {
+		t.Errorf("entries[0] = %+v, want HELLO (138 bytes)", entries[0])
 	}
-	for _, e := range entries {
-		if e.Corrupt {
-			t.Errorf("%s is corrupt: %s", e.Name, e.Error)
-		}
+	if entries[13].Name != "PINBALL" || entries[13].Size != 6629 {
+		t.Errorf("entries[13] = %+v, want PINBALL (6629 bytes)", entries[13])
 	}
+
 	usage, err := img.Usage()
 	if err != nil {
 		t.Fatalf("Usage() failed: %v", err)
 	}
-	if usage.TotalSectors != 560 || usage.InUseSectors != 529 || usage.FreeSectors != 31 {
-		t.Errorf("Usage() = %+v, want Total=560, InUse=529, Free=31", usage)
+	if usage.TotalSectors != 455 || usage.InUseSectors != 452 || usage.FreeSectors != 3 {
+		t.Errorf("Usage() = %+v, want Total=455, InUse=452, Free=3", usage)
 	}
 
-	// STARTUP is an Applesoft program: a 2 byte length, then lines linked
-	// by their memory addresses (from $0801) up to a zero link. Decoding
-	// errors would break the chain.
-	prog, err := img.ReadFile("STARTUP")
+	// APPLE-TREK is an Integer BASIC program: a 2 byte length, then lines
+	// of (length, line number, tokens, $01). Decoding errors would break
+	// the structure.
+	prog, err := img.ReadFile("APPLE-TREK")
 	if err != nil {
-		t.Fatalf("ReadFile(STARTUP) failed: %v", err)
+		t.Fatalf("ReadFile(APPLE-TREK) failed: %v", err)
 	}
 	n := int(prog[0]) | int(prog[1])<<8
-	p, lines, last := 2, 0, -1
-	for p+4 <= len(prog) {
-		link := int(prog[p]) | int(prog[p+1])<<8
-		if link == 0 {
-			break
+	body := prog[2:]
+	p, lines, last := 0, 0, -1
+	for p < n && p+3 < len(body) {
+		l, num := int(body[p]), int(body[p+1])|int(body[p+2])<<8
+		if l < 4 || p+l > len(body) || body[p+l-1] != 0x01 || num <= last {
+			t.Fatalf("bad line at offset %d: length %d, number %d after %d", p, l, num, last)
 		}
-		num := int(prog[p+2]) | int(prog[p+3])<<8
-		if num <= last {
-			t.Fatalf("line %d follows line %d", num, last)
-		}
-		last, lines = num, lines+1
-		p = link - 0x801 + 2
+		p, lines, last = p+l, lines+1, num
 	}
-	if lines != 53 || last != 530 || p != n {
-		t.Errorf("STARTUP: %d lines, last %d, program ends at %d; want 53 lines, last 530, ending at its length %d", lines, last, p, n)
+	if len(prog) != 13175 || lines != 317 || last != 20000 || p != n {
+		t.Errorf("APPLE-TREK: %d bytes, %d lines, last %d, program ends at %d; want 13175 bytes, 317 lines, last 20000, ending at its length %d",
+			len(prog), lines, last, p, n)
 	}
 }
 

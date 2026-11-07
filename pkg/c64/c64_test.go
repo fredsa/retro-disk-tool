@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/internal/testimages"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/c64"
 )
 
@@ -209,7 +210,7 @@ func TestPRG(t *testing.T) {
 }
 
 func TestCRT(t *testing.T) {
-	const crtPath = "../../images/EF3 Adrian Toolset.crt"
+	crtPath := testimages.Path(t, "c64", "EF3 Adrian Toolset.crt")
 	f, err := os.Open(crtPath)
 	if err != nil {
 		t.Fatalf("failed to open crt: %v", err)

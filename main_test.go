@@ -130,6 +130,8 @@ func TestRunLsFormat(t *testing.T) {
 		{"test_data/och0528v35.d64", []string{"Platform:   Commodore 64", "D64 (1541 disk image, 35 tracks)", "35 tracks, 1 head, 17-21 sectors/track, 256 bytes/sector"}},
 		{"test_data/dos.atr", []string{"Platform:   Atari 8-bit", "ATR (disk image", "Atari DOS 2.0S", "40 tracks, 1 head, 18 sectors/track, 128 bytes/sector"}},
 		{"test_data/lpmud.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
+		{"test_data/ZX81_Kong (Paul Farrow 2010) [V1-01].p", []string{"Platform:   Sinclair ZX81", "P (program file, memory image from $4009)"}},
+		{"test_data/ZX81_Kong (Paul Farrow 2010) [V1-01].P81", []string{"Platform:   Sinclair ZX81", "P81 (named program file, 1 program)"}},
 		{"test_data/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
 		{"test_data/EF3 Adrian Toolset.crt", []string{"CRT (cartridge image, version 1.0"}},
 	}
@@ -345,5 +347,24 @@ func TestListRecursive(t *testing.T) {
 	}
 	if _, err := listRecursive(cyclic, "", []disk.Entry{{Name: "d", IsDir: true}}, 0); err == nil || !strings.Contains(err.Error(), "too deeply") {
 		t.Errorf("listRecursive(cyclic) error = %v, want nested too deeply", err)
+	}
+}
+
+func TestRunLsP81(t *testing.T) {
+	const path = "test_data/ZX81_Kong (Paul Farrow 2010) [V1-01].P81"
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "-l", path}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l %s) = %d (stderr: %s)", path, code, stderr.String())
+	}
+	if w := "  -       12513                     \"ZX81 KONG\"\n"; !strings.Contains(stdout.String(), w) {
+		t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+	}
+	if strings.Contains(stdout.String(), "Usage:") {
+		t.Errorf("program file should not report disk usage; got:\n%s", stdout.String())
+	}
+
+	stdout.Reset()
+	if code := run([]string{"cat", path, "ZX81 KONG"}, &stdout, &stderr); code != 0 || stdout.Len() != 12513 {
+		t.Errorf("cat ZX81 KONG = code %d, %d bytes; want 0, 12513 bytes", code, stdout.Len())
 	}
 }

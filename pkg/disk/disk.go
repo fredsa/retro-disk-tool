@@ -13,6 +13,7 @@ import (
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/c64"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/ibm"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/zx81"
 )
 
 type Entry struct {
@@ -104,6 +105,12 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 			return nil, err
 		}
 		return &ibmAdapter{d: d}, nil
+	case ".p", ".p81":
+		z, err := zx81.Open(filename, r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &zx81Adapter{f: z}, nil
 	case ".po", ".do", ".dsk", ".d13", ".nib", ".woz":
 		img, err := apple2.Open(filename, r, size)
 		if err != nil {
@@ -509,3 +516,29 @@ func (a *ibmAdapter) Usage() (*Usage, error) {
 func (a *ibmAdapter) ReadFile(path string) ([]byte, error) { return a.d.ReadFile(path) }
 
 func (a *ibmAdapter) Dump(w io.Writer) error { return a.d.Dump(w) }
+
+type zx81Adapter struct {
+	f *zx81.File
+}
+
+func (a *zx81Adapter) Format() *util.FormatInfo { return a.f.Format() }
+
+func (a *zx81Adapter) Header() *DiskHeader { return nil }
+
+func (a *zx81Adapter) List() ([]Entry, error) {
+	entries, err := a.f.List()
+	if err != nil {
+		return nil, err
+	}
+	res := make([]Entry, len(entries))
+	for i, e := range entries {
+		res[i] = Entry{Name: e.Name, Size: e.Size, Native: e.Native}
+	}
+	return res, nil
+}
+
+func (a *zx81Adapter) Usage() (*Usage, error) { return &Usage{}, nil }
+
+func (a *zx81Adapter) ReadFile(path string) ([]byte, error) { return a.f.ReadFile(path) }
+
+func (a *zx81Adapter) Dump(w io.Writer) error { return a.f.Dump(w) }

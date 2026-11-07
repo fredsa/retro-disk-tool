@@ -83,6 +83,7 @@ type Disk struct {
 	spt       int    // geometry of the image: sectors per track
 	heads     int    //   and heads
 	extra     int    // unreadable sectors after the filesystem
+	geoBySize bool   // geometry taken from the image size (the BPB's does not fit)
 	b         bpb
 	fatBits   int // 12, 16 or 32
 	fatStart  int // byte offsets
@@ -144,6 +145,15 @@ func Open(r io.ReaderAt, size int64) (*Disk, error) {
 		}
 		d.sectors, d.spt, d.heads = len(raw)/b.bytesPerSec, g.spt, g.h
 		d.extra = d.sectors - b.totalSectors
+	}
+	// Some formatters (e.g. macOS newfs_msdos) write a hard disk style
+	// geometry; use the standard floppy geometry for the image size instead.
+	if perCyl := d.spt * d.heads; d.partition == 0 && (perCyl == 0 || d.sectors%perCyl != 0) {
+		for _, g := range floppyGeometries {
+			if g.size == len(raw) && b.bytesPerSec == 512 {
+				d.spt, d.heads, d.geoBySize = g.spt, g.h, true
+			}
+		}
 	}
 
 	d.fatStart = b.reserved * b.bytesPerSec
@@ -783,7 +793,11 @@ func (d *Disk) Dump(w io.Writer) error {
 	fmt.Fprintf(w, "  FATs: %d x %d sectors, Root entries: %d\n", b.numFATs, b.fatSize, b.rootEntries)
 	fmt.Fprintf(w, "  Total sectors: %d, Data clusters: %d\n", b.totalSectors, d.clusters)
 	fmt.Fprintf(w, "  BPB geometry: %d heads, %d sectors/track\n", b.heads, b.secPerTrack)
-	fmt.Fprintf(w, "  Image geometry: %d tracks, %d heads, %d sectors/track (%d sectors)\n", d.tracks(), d.heads, d.spt, d.sectors)
+	by := ""
+	if d.geoBySize {
+		by = ", from the image size"
+	}
+	fmt.Fprintf(w, "  Image geometry: %d tracks, %d heads, %d sectors/track (%d sectors%s)\n", d.tracks(), d.heads, d.spt, d.sectors, by)
 	if d.extra > 0 {
 		fmt.Fprintf(w, "  Unreadable sectors after filesystem: %d (sectors %d-%d)\n", d.extra, b.totalSectors, d.sectors-1)
 	}

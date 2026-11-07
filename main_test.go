@@ -69,10 +69,6 @@ func TestRunLs(t *testing.T) {
 			wantContain: []string{"Contents:\n  Type     Size Modified            Name\n", "  -       25071", "flipandflop.prg"},
 		},
 		{
-			args:        []string{"ls", "-l", "images/EF3 Adrian Toolset.crt"},
-			wantContain: []string{"Contents:\n  Type     Size Modified            Name\n", "  -      622592", "\"ndefpack 1.0.1\""},
-		},
-		{
 			args:        []string{"ls", "-l", "images/64 games 21.D64"},
 			wantContain: []string{"Label:\n  \"64 GAMES 21\" GL,2A\n", "Contents:\n  Type     Size Modified            Name", "Native\n", `"V▂π🭻▂πππππππππππ"`, "  -        1798                     MENU", "  ?        8193", "Warning: broken directory on disk (track 18, sector 7: 23, READ ERROR (checksum error in data block))"},
 		},
@@ -126,7 +122,6 @@ func TestRunLsFormat(t *testing.T) {
 		{"images/c64/1942.tap", []string{"TAP (raw tape image, version 1, C64, PAL, 718070 pulses)"}},
 		{"images/c64/war64.tcrt", []string{"TCRT (tapecart image, version 1, 2012 KiB flash)", "Filesystem: TapcrtFileSys"}},
 		{"images/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
-		{"images/EF3 Adrian Toolset.crt", []string{"CRT (cartridge image, version 1.0"}},
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer
@@ -186,10 +181,6 @@ func TestRunDump(t *testing.T) {
 		{
 			file:        "images/flipandflop.prg",
 			wantContain: []string{"Commodore 64 PRG File Dump", "Load Address: 0x0801", "25071 bytes"},
-		},
-		{
-			file:        "images/EF3 Adrian Toolset.crt",
-			wantContain: []string{"Commodore 64 Cartridge (CRT) Dump", "ndefpack 1.0.1", "CHIP Packets (76)"},
 		},
 	}
 	for _, tt := range tests {
@@ -559,5 +550,28 @@ func TestRunLsApple(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"cat", testimages.Path(t, "apple", "Apple DOS 3.1 Master.d13"), "COPY"}, &stdout, &stderr); code != 0 || stdout.Len() != 1407 {
 		t.Errorf("cat COPY = code %d, %d bytes; want 1407", code, stdout.Len())
+	}
+}
+
+// TestRunCRT uses an EasyFlash cartridge image downloaded into images/c64.
+func TestRunCRT(t *testing.T) {
+	path := testimages.Path(t, "c64", "EF3 Adrian Toolset.crt")
+	for _, tc := range []struct {
+		args        []string
+		wantContain []string
+	}{
+		{[]string{"ls", "-l", path}, []string{"Format:\n  Platform:   Commodore 64\n", "CRT (cartridge image, version 1.0, hardware type 32, 76 CHIP packets)",
+			"Contents:\n  Type     Size Modified            Name\n", "  -      622592", "\"ndefpack 1.0.1\""}},
+		{[]string{"dump", path}, []string{"Commodore 64 Cartridge (CRT) Dump", "ndefpack 1.0.1", "CHIP Packets (76)"}},
+	} {
+		var stdout, stderr bytes.Buffer
+		if code := run(tc.args, &stdout, &stderr); code != 0 {
+			t.Fatalf("run(%s) = %d (stderr: %s)", tc.args[0], code, stderr.String())
+		}
+		for _, w := range tc.wantContain {
+			if !strings.Contains(stdout.String(), w) {
+				t.Errorf("run(%s) stdout missing %q; got:\n%s", tc.args[0], w, stdout.String())
+			}
+		}
 	}
 }

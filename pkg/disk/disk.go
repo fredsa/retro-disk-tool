@@ -9,6 +9,7 @@ import (
 
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/adf"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/apple2"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/atari"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/c64"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
@@ -84,6 +85,12 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 			return nil, err
 		}
 		return &crtAdapter{c: c}, nil
+	case ".atr":
+		a, err := atari.Open(r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &atariAdapter{a: a}, nil
 	case ".po", ".do", ".dsk", ".d13", ".nib", ".woz":
 		img, err := apple2.Open(filename, r, size)
 		if err != nil {
@@ -381,3 +388,51 @@ func (a *d64Adapter) Format() *util.FormatInfo    { return a.d.Format() }
 func (a *prgAdapter) Format() *util.FormatInfo    { return a.p.Format() }
 func (a *crtAdapter) Format() *util.FormatInfo    { return a.c.Format() }
 func (a *apple2Adapter) Format() *util.FormatInfo { return a.img.Format() }
+
+type atariAdapter struct {
+	a *atari.Disk
+}
+
+func (a *atariAdapter) Format() *util.FormatInfo { return a.a.Format() }
+
+func (a *atariAdapter) Header() *DiskHeader { return nil }
+
+func (a *atariAdapter) List() ([]Entry, error) {
+	entries, err := a.a.List()
+	if err != nil {
+		return nil, err
+	}
+	res := make([]Entry, len(entries))
+	for i, e := range entries {
+		res[i] = Entry{
+			Name:    e.Name,
+			Size:    e.Size,
+			Corrupt: e.Corrupt,
+			Error:   e.Error,
+		}
+	}
+	return res, nil
+}
+
+func (a *atariAdapter) Usage() (*Usage, error) {
+	u, err := a.a.Usage()
+	if err != nil {
+		return nil, err
+	}
+	return &Usage{
+		FormattedCapacity: u.FormattedCapacity,
+		FormattedDesc:     a.a.FormattedDesc(),
+		SectorSize:        u.SectorSize,
+		TotalSectors:      u.TotalSectors,
+		InUseSectors:      u.InUseSectors,
+		FreeSectors:       u.FreeSectors,
+		TotalBytes:        u.TotalBytes,
+		InUseBytes:        u.InUseBytes,
+		FreeBytes:         u.FreeBytes,
+		HasUsage:          true,
+	}, nil
+}
+
+func (a *atariAdapter) ReadFile(path string) ([]byte, error) { return a.a.ReadFile(path) }
+
+func (a *atariAdapter) Dump(w io.Writer) error { return a.a.Dump(w) }

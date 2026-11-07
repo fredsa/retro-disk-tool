@@ -269,7 +269,9 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout)
 		fmt.Fprintf(stdout, "Capacity:\n")
 		fmt.Fprintf(stdout, fmtStr, "Formatted:", usage.FormattedDesc, formatWithCommas(usage.FormattedCapacity))
-		fmt.Fprintf(stdout, fmtStr, "Unformatted:", usage.UnformattedDesc, formatWithCommas(usage.UnformattedCapacity))
+		if usage.UnformattedDesc != "" {
+			fmt.Fprintf(stdout, fmtStr, "Unformatted:", usage.UnformattedDesc, formatWithCommas(usage.UnformattedCapacity))
+		}
 		fmt.Fprintln(stdout)
 		fmt.Fprintf(stdout, "Usage:\n")
 		if usage.BAMSectors > 0 {

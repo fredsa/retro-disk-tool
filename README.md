@@ -15,6 +15,7 @@ Apple II | `DO`, `DSK` | 140 KiB | SS 5.25"| 35        | 1     | 16      | 256
 Apple II | `PO`      | 140 KiB  | SS 5.25"| 35        | 1     | 16      | 256
 Apple II | `NIB`     | 140 KiB  | SS 5.25"| 35        | 1     | 13 / 16 | 256
 Apple II | `WOZ`     | 140 KiB  | SS 5.25"| 35        | 1     | 13 / 16 | 256
+Atari 8-bit | `ATR` | 90 KiB   | SS 5.25"| 40        | 1     | 18      | 128
 
 Apple II images may hold Apple DOS 3.x (13 or 16 sector) or ProDOS volumes. `NIB` and `WOZ` (v1 and v2)
 images are decoded from their GCR nibble / bitstream data (5-and-3 and 6-and-2 encoding).

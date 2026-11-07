@@ -125,6 +125,7 @@ func TestRunLsFormat(t *testing.T) {
 		{"test_data/aptestdos.do", []string{"DO (raw sector image, DOS 3.3 sector order)", "Apple DOS 3.3"}},
 		{"test_data/Workbench v1.0 (1985)(Commodore).adf", []string{"Platform:   Amiga", "Amiga OFS", "80 tracks, 2 heads, 11 sectors/track, 512 bytes/sector"}},
 		{"test_data/och0528v35.d64", []string{"Platform:   Commodore 64", "D64 (1541 disk image, 35 tracks)", "35 tracks, 1 head, 17-21 sectors/track, 256 bytes/sector"}},
+		{"test_data/dos.atr", []string{"Platform:   Atari 8-bit", "ATR (disk image", "Atari DOS 2.0S", "40 tracks, 1 head, 18 sectors/track, 128 bytes/sector"}},
 		{"test_data/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
 		{"test_data/EF3 Adrian Toolset.crt", []string{"CRT (cartridge image, version 1.0"}},
 	}
@@ -203,5 +204,33 @@ func TestRunDump(t *testing.T) {
 				t.Errorf("run(dump %s) output missing %q", tt.file, w)
 			}
 		}
+	}
+}
+
+func TestRunLsATR(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "-l", "test_data/dos.atr"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l dos.atr) = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{
+		"Contents:\n  Type     Size Modified            Name\n",
+		"  -        4875                     DOS.SYS",
+		"  -        5126                     DUP.SYS",
+		"  -          88                     AUTORUN.SYS",
+		"Formatted:    90 KiB (92,160 bytes)",
+		"In-use:  13.2%     95 sectors",
+		"Free:    86.8%    625 sectors",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+	if strings.Contains(stdout.String(), "Unformatted") {
+		t.Errorf("ATR output should not report unformatted capacity; got:\n%s", stdout.String())
+	}
+
+	stdout.Reset()
+	if code := run([]string{"cat", "test_data/dos.atr", "AUTORUN.SYS"}, &stdout, &stderr); code != 0 || stdout.Len() != 88 {
+		t.Errorf("cat AUTORUN.SYS = code %d, %d bytes; want 0, 88 bytes", code, stdout.Len())
 	}
 }

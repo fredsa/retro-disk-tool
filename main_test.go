@@ -133,6 +133,8 @@ func TestRunLsFormat(t *testing.T) {
 		{"test_data/ZX81_Kong (Paul Farrow 2010) [V1-01].p", []string{"Platform:   Sinclair ZX81", "P (program file, memory image from $4009)"}},
 		{"test_data/ZX81_Kong (Paul Farrow 2010) [V1-01].P81", []string{"Platform:   Sinclair ZX81", "P81 (named program file, 1 program)"}},
 		{"test_data/trs80profileiii.img", []string{"Platform:   TRS-80 Model III", "IMG (raw sector image)", "Filesystem: TRSDOS 1.3", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
+		{"test_data/mfgamania.img", []string{"Platform:   Atari 8-bit", "XFD (raw sector image, 128 byte sectors, all bits inverted)", "Atari DOS 2.0S"}},
+		{"test_data/maxell.img", []string{"Platform:   IBM PC", "Filesystem: FAT12", "40 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
 		{"test_data/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
 		{"test_data/EF3 Adrian Toolset.crt", []string{"CRT (cartridge image, version 1.0"}},
 	}
@@ -390,5 +392,25 @@ func TestRunLsTRS80(t *testing.T) {
 	stdout.Reset()
 	if code := run([]string{"cat", "test_data/trs80profileiii.img", "RM/CMD"}, &stdout, &stderr); code != 0 || stdout.Len() != 3384 {
 		t.Errorf("cat RM/CMD = code %d, %d bytes; want 0, 3384 bytes", code, stdout.Len())
+	}
+}
+
+func TestRunLsWarnings(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "test_data/maxell.img"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls maxell.img) = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{
+		"\nWarning: image is larger than the FAT12 filesystem: 720 extra sectors after the first 720 (720 of them unreadable)\n",
+		"Warning: 274 unreadable sectors in the filesystem",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+
+	stdout.Reset()
+	if code := run([]string{"ls", "test_data/lpmud.img"}, &stdout, &stderr); code != 0 || strings.Contains(stdout.String(), "Warning") {
+		t.Errorf("ls lpmud.img = code %d, want no warnings; got:\n%s", code, stdout.String())
 	}
 }

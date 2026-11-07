@@ -16,6 +16,7 @@ Apple II | `PO`      | 140 KiB  | SS 5.25"| 35        | 1     | 16      | 256
 Apple II | `NIB`     | 140 KiB  | SS 5.25"| 35        | 1     | 13 / 16 | 256
 Apple II | `WOZ`     | 140 KiB  | SS 5.25"| 35        | 1     | 13 / 16 | 256
 Atari 8-bit | `ATR` | 90 KiB   | SS 5.25"| 40        | 1     | 18      | 128
+Atari 8-bit | `XFD`, `IMG` | 90 KiB | SS 5.25"| 40     | 1     | 18      | 128
 ZX81     | `P`, `P81` | N/A    | File    | N/A       | N/A   | N/A     | N/A
 TRS-80 Model III | `IMG` | 180 KiB | SS 5.25"| 40   | 1     | 18      | 256
 IBM PC   | `IMG`, `IMA`, `VFD` | 160 KiB - 2.88 MiB | 5.25" / 3.5" | 40 / 80 | 1 / 2 | 8 - 36 | 512
@@ -27,7 +28,15 @@ ZX81 `P` files are memory images saved from the system variables at $4009; `P81`
 hold several programs. `cat` returns a program's `P` data, and `dump` shows its system variables and BASIC listing.
 
 TRS-80 Model III images hold TRSDOS 1.3 volumes; files are named `NAME/EXT` (`cat` also accepts `NAME.EXT`).
-`IMG` files are checked for an IBM PC FAT volume first.
+
+Atari raw (headerless) images are recognized by size. Raw dumps of disks written by Atari drives, which store data
+with all bits inverted, are detected and corrected automatically.
+
+`IMG` files are checked for an IBM PC FAT volume, then TRS-80 TRSDOS 1.3, then Atari DOS 2.x.
+
+`ls` warns about sectors the imaging tool could not read (filled with `-=[BAD SECTOR]=-`) and, for IBM PC images,
+about data beyond the end of the filesystem (e.g. a 360 KiB disk imaged as 720 KiB). Files containing unreadable
+sectors are marked as corrupt.
 
 IBM PC images may hold FAT12, FAT16 or FAT32 volumes, including long file names, DOS 1.x floppies without a
 BPB, and MBR partitioned hard disk images. `ls` and `cat` accept paths such as `DOS` and `DOS/README.TXT`, and

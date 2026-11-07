@@ -74,6 +74,7 @@ type bpb struct {
 
 // Disk is an opened FAT volume.
 type Disk struct {
+	image     []byte // the whole image file
 	data      []byte // volume data (starting at the boot sector)
 	partition int    // MBR partition number (1-4), 0 for an unpartitioned image
 	partOff   int    // byte offset of the partition in the image
@@ -111,7 +112,7 @@ func Open(r io.ReaderAt, size int64) (*Disk, error) {
 		return nil, fmt.Errorf("failed to read image: %w", err)
 	}
 
-	d := &Disk{data: raw}
+	d := &Disk{image: raw, data: raw}
 	b, ok := parseBPB(raw)
 	if !ok {
 		if off, n := findPartition(raw); off > 0 {
@@ -450,12 +451,93 @@ func (d *Disk) readDir(cluster uint32) ([]Entry, string, error) {
 				} else if need := (int(ent.Size) + d.clusterSize() - 1) / d.clusterSize(); len(clusters) < need {
 					ent.Corrupt = true
 					ent.Error = fmt.Sprintf("cluster chain too short: %d clusters, need %d", len(clusters), need)
+				} else if n := d.badSectorsIn(clusters[:need]); n > 0 {
+					ent.Corrupt = true
+					ent.Error = fmt.Sprintf("%d unreadable sectors", n)
 				}
 			}
 		}
 		entries = append(entries, ent)
 	}
 	return entries, label, err
+}
+
+// badSectorsIn counts the unreadable sectors in clusters.
+func (d *Disk) badSectorsIn(clusters []uint32) int {
+	n, bs := 0, d.b.bytesPerSec
+	for _, c := range clusters {
+		off := d.dataStart + int(c-2)*d.clusterSize()
+		for s := 0; s < d.b.secPerClus; s++ {
+			if o := off + s*bs; o+bs <= len(d.data) && util.IsBadSector(d.data[o:o+bs]) {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// badSectors returns the unreadable sectors (numbered from the start of the
+// image) inside and beyond the filesystem.
+func (d *Disk) badSectors() (inside, beyond []int) {
+	bs := d.b.bytesPerSec
+	start := d.partOff / bs
+	end := start + d.b.totalSectors
+	for s := 0; (s+1)*bs <= len(d.image); s++ {
+		if !util.IsBadSector(d.image[s*bs : (s+1)*bs]) {
+			continue
+		}
+		if s >= start && s < end {
+			inside = append(inside, s)
+		} else {
+			beyond = append(beyond, s)
+		}
+	}
+	return inside, beyond
+}
+
+// badSystemSectors counts the bad sectors (as returned by badSectors) that
+// hold the boot sector, FATs or fixed root directory.
+func (d *Disk) badSystemSectors(bad []int) int {
+	start := d.partOff / d.b.bytesPerSec
+	end := start + d.dataStart/d.b.bytesPerSec
+	n := 0
+	for _, s := range bad {
+		if s >= start && s < end {
+			n++
+		}
+	}
+	return n
+}
+
+// extraSectors returns the number of image sectors after the end of the
+// filesystem (unpartitioned images only).
+func (d *Disk) extraSectors() int {
+	if d.partition != 0 {
+		return 0
+	}
+	return (len(d.image) - d.b.totalSectors*d.b.bytesPerSec) / d.b.bytesPerSec
+}
+
+// Warnings describes problems with the image: unreadable sectors and data
+// beyond the end of the filesystem.
+func (d *Disk) Warnings() []string {
+	var w []string
+	inside, beyond := d.badSectors()
+	if extra := d.extraSectors(); extra > 0 {
+		msg := fmt.Sprintf("image is larger than the FAT%d filesystem: %d extra sectors after the first %d", d.fatBits, extra, d.b.totalSectors)
+		if len(beyond) > 0 {
+			msg += fmt.Sprintf(" (%d of them unreadable)", len(beyond))
+		}
+		w = append(w, msg)
+	}
+	if len(inside) > 0 {
+		msg := fmt.Sprintf("%d unreadable sectors in the filesystem (filled with %q by the imaging tool)", len(inside), util.BadSectorMarker)
+		if n := d.badSystemSectors(inside); n > 0 {
+			msg += fmt.Sprintf("; %d of them in the boot sector, FAT or root directory, so the listing may be incomplete", n)
+		}
+		w = append(w, msg)
+	}
+	return w
 }
 
 // List returns the root directory entries.
@@ -684,6 +766,13 @@ func (d *Disk) Dump(w io.Writer) error {
 	fmt.Fprintf(w, "  Volume label: %q\n", d.Label())
 	if u, err := d.Usage(); err == nil {
 		fmt.Fprintf(w, "  In-use: %d sectors, Free: %d sectors, Total: %d sectors\n", u.InUseSectors, u.FreeSectors, u.TotalSectors)
+	}
+	inside, beyond := d.badSectors()
+	if len(inside) > 0 {
+		fmt.Fprintf(w, "  Unreadable sectors in filesystem (%d): %s\n", len(inside), util.FormatRanges(inside))
+	}
+	if extra := d.extraSectors(); extra > 0 {
+		fmt.Fprintf(w, "  Extra sectors after filesystem: %d (%d unreadable)\n", extra, len(beyond))
 	}
 	fmt.Fprintf(w, "  Directory tree:\n")
 	d.dumpDir(w, 0, "", 0)

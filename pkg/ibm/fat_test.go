@@ -124,3 +124,45 @@ func TestDOS1x(t *testing.T) {
 		t.Errorf("Usage = %+v", u)
 	}
 }
+
+func TestBadSectors(t *testing.T) {
+	raw, err := os.ReadFile("../../test_data/maxell.img")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := ibm.Open(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	w := d.Warnings()
+	if len(w) != 2 ||
+		!strings.Contains(w[0], "720 extra sectors after the first 720 (720 of them unreadable)") ||
+		!strings.Contains(w[1], "274 unreadable sectors") || !strings.Contains(w[1], "1 of them in the boot sector, FAT or root directory") {
+		t.Errorf("Warnings = %q", w)
+	}
+	if fm := d.Format(); fm.Tracks != 40 || fm.Heads != 2 {
+		t.Errorf("Format = %+v, want 40 tracks, 2 heads", fm)
+	}
+
+	// A file with an unreadable sector is reported as corrupt.
+	img, err := os.ReadFile("../../test_data/lpmud.img")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := ibm.Open(bytes.NewReader(img), int64(len(img))); len(d.Warnings()) != 0 {
+		t.Errorf("lpmud.img Warnings = %q, want none", d.Warnings())
+	}
+	// LPMUD.ARJ starts at cluster 3: data starts at sector 14, 2 sectors per cluster.
+	copy(img[16*512:17*512], bytes.Repeat([]byte("-=[BAD SECTOR]=-"), 32))
+	d, err = ibm.Open(bytes.NewReader(img), int64(len(img)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub, _ := d.ListDir("DOSP11")
+	if len(sub) != 1 || !sub[0].Corrupt || sub[0].Error != "1 unreadable sectors" {
+		t.Errorf("ListDir(DOSP11) = %+v, want LPMUD.ARJ corrupt with 1 unreadable sector", sub)
+	}
+	if w := d.Warnings(); len(w) != 1 || !strings.HasPrefix(w[0], "1 unreadable sectors in the filesystem") || strings.Contains(w[0], "listing may be incomplete") {
+		t.Errorf("Warnings = %q", w)
+	}
+}

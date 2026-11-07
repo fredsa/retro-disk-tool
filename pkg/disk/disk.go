@@ -67,6 +67,12 @@ type DirLister interface {
 	ListDir(path string) ([]Entry, error)
 }
 
+// Warner is implemented by readers that can report problems with an image,
+// such as unreadable sectors.
+type Warner interface {
+	Warnings() []string
+}
+
 func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 	ext := strings.ToLower(filepath.Ext(filename))
 	switch ext {
@@ -108,12 +114,22 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 		if ext != ".img" {
 			return nil, err
 		}
-		// .img is also used for TRS-80 raw sector images.
+		// .img is also used for TRS-80 and Atari raw sector images.
 		t, terr := trs80.Open(r, size)
-		if terr != nil {
-			return nil, fmt.Errorf("unrecognized disk image: IBM PC: %v; TRS-80: %v", err, terr)
+		if terr == nil {
+			return &trs80Adapter{d: t}, nil
 		}
-		return &trs80Adapter{d: t}, nil
+		a, aerr := atari.OpenXFD(r, size)
+		if aerr == nil {
+			return &atariAdapter{a: a}, nil
+		}
+		return nil, fmt.Errorf("unrecognized disk image: IBM PC: %v; TRS-80: %v; Atari: %v", err, terr, aerr)
+	case ".xfd":
+		a, err := atari.OpenXFD(r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &atariAdapter{a: a}, nil
 	case ".p", ".p81":
 		z, err := zx81.Open(filename, r, size)
 		if err != nil {
@@ -521,6 +537,8 @@ func (a *ibmAdapter) Usage() (*Usage, error) {
 		HasUsage:            true,
 	}, nil
 }
+
+func (a *ibmAdapter) Warnings() []string { return a.d.Warnings() }
 
 func (a *ibmAdapter) ReadFile(path string) ([]byte, error) { return a.d.ReadFile(path) }
 

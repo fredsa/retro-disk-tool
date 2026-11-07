@@ -301,6 +301,15 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	if wr, ok := reader.(disk.Warner); ok {
+		if warnings := wr.Warnings(); len(warnings) > 0 {
+			fmt.Fprintln(stdout)
+			for _, w := range warnings {
+				fmt.Fprintf(stdout, "Warning: %s\n", w)
+			}
+		}
+	}
+
 	usage, err := reader.Usage()
 	if err != nil {
 		fmt.Fprintf(stderr, "Warning: unable to calculate disk usage: %v\n", err)

@@ -1,5 +1,6 @@
-// Package atari reads Atari 8-bit ATR disk images containing Atari DOS 2.x
-// (2.0S single density, 2.5 enhanced density, 2.0D double density) volumes.
+// Package atari reads Atari 8-bit ATR and raw (XFD) disk images containing
+// Atari DOS 2.x (2.0S single density, 2.5 enhanced density, 2.0D double
+// density) volumes.
 package atari
 
 import (
@@ -50,6 +51,8 @@ type Disk struct {
 	data       []byte // sector data (ATR header removed)
 	secSize    int
 	numSectors int
+	raw        bool // headerless XFD image
+	inverted   bool // all bits were inverted in the image
 }
 
 type rawEntry struct {
@@ -85,21 +88,60 @@ func Open(r io.ReaderAt, size int64) (*Disk, error) {
 	}
 	data = data[:imageSize]
 
+	if secSize == 256 && len(data) < 3*128 {
+		return nil, fmt.Errorf("ATR image too small")
+	}
+	return newDisk(data, secSize, false)
+}
+
+// OpenXFD parses a raw (headerless) image, recognized by its size: 720 or
+// 1040 single density sectors, or 720 double density sectors. Images whose
+// bits are all inverted (raw dumps of disks written by Atari drives, which
+// store data inverted) are detected and corrected.
+func OpenXFD(r io.ReaderAt, size int64) (*Disk, error) {
+	var secSize int
+	switch size {
+	case 720 * 128, 1040 * 128:
+		secSize = 128
+	case 3*128 + 717*256:
+		secSize = 256
+	default:
+		return nil, fmt.Errorf("not a raw Atari disk image: unexpected size %d", size)
+	}
+	data := make([]byte, size)
+	if _, err := r.ReadAt(data, 0); err != nil {
+		return nil, fmt.Errorf("failed to read image: %w", err)
+	}
+	return newDisk(data, secSize, true)
+}
+
+func newDisk(data []byte, secSize int, raw bool) (*Disk, error) {
 	n := len(data) / 128
 	if secSize == 256 {
-		if len(data) < 3*128 {
-			return nil, fmt.Errorf("ATR image too small")
-		}
 		n = 3 + (len(data)-3*128)/256
 	}
-	d := &Disk{data: data, secSize: secSize, numSectors: n}
+	d := &Disk{data: data, secSize: secSize, numSectors: n, raw: raw}
 
 	vtoc, err := d.readSector(vtocSector)
 	if err != nil {
 		return nil, fmt.Errorf("not an Atari DOS 2.x disk: %w", err)
 	}
+	if vtoc[0] == ^byte(2) {
+		inv := make([]byte, len(data))
+		for i, b := range data {
+			inv[i] = ^b
+		}
+		d.data, d.inverted = inv, true
+		vtoc, _ = d.readSector(vtocSector)
+	}
 	if vtoc[0] != 2 {
 		return nil, fmt.Errorf("unsupported Atari DOS type (VTOC code %d); only Atari DOS 2.x is supported", vtoc[0])
+	}
+	if raw {
+		// Without an ATR header to go by, require a plausible VTOC.
+		if total := int(binary.LittleEndian.Uint16(vtoc[1:3])); total == 0 || total > n {
+			return nil, fmt.Errorf("not an Atari DOS 2.x disk: invalid VTOC sector count %d", total)
+		}
 	}
 	return d, nil
 }
@@ -285,7 +327,7 @@ func (d *Disk) Format() *util.FormatInfo {
 	}
 	return &util.FormatInfo{
 		Platform:   "Atari 8-bit",
-		Image:      fmt.Sprintf("ATR (disk image with 16 byte header, %d byte sectors)", d.secSize),
+		Image:      d.imageDesc(),
 		Filesystem: fsName,
 		Tracks:     40,
 		Heads:      1,
@@ -294,10 +336,22 @@ func (d *Disk) Format() *util.FormatInfo {
 	}
 }
 
+func (d *Disk) imageDesc() string {
+	desc := fmt.Sprintf("ATR (disk image with 16 byte header, %d byte sectors)", d.secSize)
+	if d.raw {
+		desc = fmt.Sprintf("XFD (raw sector image, %d byte sectors)", d.secSize)
+	}
+	if d.inverted {
+		desc = strings.TrimSuffix(desc, ")") + ", all bits inverted)"
+	}
+	return desc
+}
+
 // Dump writes a detailed description of the disk.
 func (d *Disk) Dump(w io.Writer) error {
 	f := d.Format()
-	fmt.Fprintf(w, "Atari ATR Disk Image Dump\n")
+	fmt.Fprintf(w, "Atari Disk Image Dump\n")
+	fmt.Fprintf(w, "  Image: %s\n", d.imageDesc())
 	fmt.Fprintf(w, "  Filesystem: %s\n", f.Filesystem)
 	fmt.Fprintf(w, "  Sector size: %d bytes, Sectors: %d (%d bytes)\n", d.secSize, d.numSectors, len(d.data))
 	if vtoc, err := d.readSector(vtocSector); err == nil {

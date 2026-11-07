@@ -36,6 +36,8 @@ var Manifest = []Image{
 		116480, "39d0d8f8e28700db2db20d6bd76123f3e629c904942e34dc9d347d3fc3f682be"},
 	{"apple", "Apple DOS 3.3 August 1980.dsk", appleOS + "Apple%20DOS/Disk%20Images/Apple%20DOS%203.3%20August%201980.dsk",
 		143360, "84bb9e1db42cc3d005657e4f61d5e908c2a89f8069e65a9cb22c5cc55bc47c76"},
+	{"apple", "ProDOS 2.4.2.dsk", appleOS + "Apple%20ProDOS/Disk%20Images/ProDOS%202.4.2.dsk",
+		143360, "d1e6fab8d9a25acf6e10ffa15e4120a616898c03613ab87a8e12882b12102543"},
 	{"apple", "Apple Pascal - Disk 0.po", appleOS + "Apple%20Pascal/Disk%20Images/Apple%20Pascal%20-%20Disk%200.po",
 		143360, "ff5ce078485f98b1990a56c93843f153c1c4f85928ad1bf70e4eaebd354d22fc"},
 	{"apple", "CPAM 3.5.po", appleOS + "Apple%20CPM/Disk%20Images/CPAM%203.5.po",

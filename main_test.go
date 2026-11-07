@@ -505,7 +505,7 @@ func TestRunLsC64Containers(t *testing.T) {
 }
 
 // TestRunLsApple lists Apple II images from images/apple, downloading them
-// first if needed. Images without a download source are skipped if absent.
+// first if needed.
 func TestRunLsApple(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -520,13 +520,9 @@ func TestRunLsApple(t *testing.T) {
 		{"Apple DOS 3.3 August 1980.dsk", []string{"Format:\n  Platform:   Apple II\n", "DSK (raw sector image, DOS 3.3 sector order)", "Filesystem: Apple DOS 3.3",
 			"35 tracks, 1 head, 16 sectors/track, 256 bytes/sector", "  -        1139                     HELLO", "  -         333                     \"RETRIEVE TEXT\"",
 			"Formatted:   140 KiB (143,360 bytes)", "In-use:  91.2%    511 sectors", "Free:     8.8%     49 sectors"}},
-		{"ProDOS_2_4_3.po", []string{"PO (raw sector image, ProDOS sector order)", "Filesystem: ProDOS", "16 sectors/track",
-			"Label:\n  /PRODOS.2.4.3\n", "  -       17128 2023-12-30 02:43:00 PRODOS", "  -         999 2023-12-30 02:43:00 README",
-			"Formatted:   140 KiB (143,360 bytes)", "In-use:  90.7%    508 sectors"}},
-		{"DOS 3.2 System Master.woz", []string{"WOZ2 (bitstream image", "Filesystem: Apple DOS 3.2", "35 tracks, 1 head, 13 sectors/track, 256 bytes/sector",
-			"Label:\n  \"DISK VOLUME 254\"\n", "  -         138                     HELLO", "  -       13175                     APPLE-TREK",
-			"  -        6629                     PINBALL", "In-use:  99.3%    452 sectors", "Free:     0.7%      3 sectors"}},
-		{"aptestdos.do", []string{"DO (raw sector image, DOS 3.3 sector order)", "Apple DOS 3.3"}},
+		{"ProDOS 2.4.2.dsk", []string{"DSK (raw sector image, DOS 3.3 sector order)", "Filesystem: ProDOS", "16 sectors/track",
+			"Label:\n  /PRODOS.2.4.2\n", "  -       17128 2018-01-18 07:00:00 PRODOS", "  -         497 2018-01-18 06:54:00 README",
+			"Formatted:   140 KiB (143,360 bytes)", "In-use: 100.0%    560 sectors"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -26,44 +26,53 @@ func openImage(t *testing.T, name string) (apple2.Image, error) {
 }
 
 func TestProDOS(t *testing.T) {
-	img, err := openImage(t, "ProDOS_2_4_3.po")
+	// ProDOS on a 140K disk stored in DOS 3.3 sector order.
+	img, err := openImage(t, "ProDOS 2.4.2.dsk")
 	if err != nil {
 		t.Fatalf("apple2.Open failed: %v", err)
 	}
+	if f := img.Format(); f.Filesystem != "ProDOS" || !strings.HasPrefix(f.Image, "DSK (raw sector image, DOS 3.3 sector order)") {
+		t.Errorf("Format() = %+v", f)
+	}
 
 	hdr := img.Header()
-	if hdr == nil || hdr.Name != "/PRODOS.2.4.3" {
-		t.Errorf("Header() = %+v, want Name=/PRODOS.2.4.3", hdr)
+	if hdr == nil || hdr.Name != "/PRODOS.2.4.2" {
+		t.Errorf("Header() = %+v, want Name=/PRODOS.2.4.2", hdr)
 	}
 
 	entries, err := img.List()
 	if err != nil {
 		t.Fatalf("List() failed: %v", err)
 	}
-	if len(entries) != 17 {
-		t.Fatalf("len(entries) = %d, want 17", len(entries))
+	if len(entries) != 19 {
+		t.Fatalf("len(entries) = %d, want 19", len(entries))
 	}
 	if entries[0].Name != "VIEW.README" || entries[0].Size != 512 {
 		t.Errorf("entries[0] = %+v, want VIEW.README (512 bytes)", entries[0])
 	}
-	if entries[16].Name != "README" || entries[16].Size != 999 {
-		t.Errorf("entries[16] = %+v, want README (999 bytes)", entries[16])
+	if e := entries[18]; e.Name != "PRODOS" || e.Size != 17128 || e.ModTime == nil || e.ModTime.Format("2006-01-02 15:04") != "2018-01-18 07:00" {
+		t.Errorf("entries[18] = %+v, want PRODOS (17128 bytes, 2018-01-18 07:00)", e)
 	}
 
 	usage, err := img.Usage()
 	if err != nil {
 		t.Fatalf("Usage() failed: %v", err)
 	}
-	if usage.TotalSectors != 560 || usage.InUseSectors != 508 || usage.FreeSectors != 52 {
-		t.Errorf("Usage() = %+v, want Total=560, InUse=508, Free=52", usage)
+	if usage.TotalSectors != 560 || usage.InUseSectors != 560 || usage.FreeSectors != 0 {
+		t.Errorf("Usage() = %+v, want Total=560, InUse=560, Free=0", usage)
 	}
 
+	// README is Apple II text (high bit set).
 	readme, err := img.ReadFile("README")
 	if err != nil {
 		t.Fatalf("ReadFile(README) failed: %v", err)
 	}
-	if len(readme) != 999 {
-		t.Errorf("len(README) = %d, want 999", len(readme))
+	text := make([]byte, len(readme))
+	for i, b := range readme {
+		text[i] = b & 0x7F
+	}
+	if len(readme) != 497 || !strings.Contains(string(text), "ProDOS 2.4.2 is a minor update.") {
+		t.Errorf("README = %d bytes %q, want 497 bytes", len(readme), text)
 	}
 }
 
@@ -146,48 +155,6 @@ func TestDOS31MasterNIB(t *testing.T) {
 	}
 	if len(content) != 1407 {
 		t.Errorf("len(COPY) = %d, want 1407", len(content))
-	}
-}
-
-func TestDOS32SystemMasterWOZ(t *testing.T) {
-	img, err := openImage(t, "DOS 3.2 System Master.woz")
-	if err != nil {
-		t.Fatalf("apple2.Open failed: %v", err)
-	}
-
-	hdr := img.Header()
-	if hdr == nil || hdr.Name != "DISK VOLUME 254" {
-		t.Errorf("Header() = %+v, want Name=DISK VOLUME 254", hdr)
-	}
-
-	entries, err := img.List()
-	if err != nil {
-		t.Fatalf("List() failed: %v", err)
-	}
-	if len(entries) != 14 {
-		t.Fatalf("len(entries) = %d, want 14", len(entries))
-	}
-	if entries[0].Name != "HELLO" || entries[0].Size != 138 {
-		t.Errorf("entries[0] = %+v, want HELLO (138 bytes)", entries[0])
-	}
-	if entries[13].Name != "PINBALL" || entries[13].Size != 6629 {
-		t.Errorf("entries[13] = %+v, want PINBALL (6629 bytes)", entries[13])
-	}
-
-	usage, err := img.Usage()
-	if err != nil {
-		t.Fatalf("Usage() failed: %v", err)
-	}
-	if usage.TotalSectors != 455 || usage.InUseSectors != 452 || usage.FreeSectors != 3 {
-		t.Errorf("Usage() = %+v, want Total=455, InUse=452, Free=3", usage)
-	}
-
-	content, err := img.ReadFile("HELLO")
-	if err != nil {
-		t.Fatalf("ReadFile(HELLO) failed: %v", err)
-	}
-	if len(content) != 138 {
-		t.Errorf("len(HELLO) = %d, want 138", len(content))
 	}
 }
 

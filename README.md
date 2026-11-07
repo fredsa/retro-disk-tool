@@ -89,7 +89,8 @@ rdt terminal
 ```
 
 `ls` prints the disk image format (`Format:`), the disk label (`Label:`), and the file listing (`Contents:`).
-An optional directory argument lists a subdirectory instead of the root, on formats with subdirectories (IBM PC),
+An optional directory argument lists a subdirectory instead of the root, on formats with subdirectories (Amiga,
+IBM PC, C64 D81 / DFI),
 and `-r` lists subdirectories recursively, naming each entry by its path.
 With `-l` the listing has `Type`, `Size`, `Modified` and `Name` columns. For Apple II (DOS 3.x) and C64 disks, an
 extra `Native` column shows the file name as the original computer displayed it, using Unicode and ANSI styling:

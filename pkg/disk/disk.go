@@ -205,8 +205,10 @@ func (a *adfAdapter) Header() *DiskHeader {
 	}
 }
 
-func (a *adfAdapter) List() ([]Entry, error) {
-	entries, err := a.fs.ListRoot()
+func (a *adfAdapter) List() ([]Entry, error) { return a.ListDir("") }
+
+func (a *adfAdapter) ListDir(path string) ([]Entry, error) {
+	entries, err := a.fs.ListDir(path)
 	if err != nil {
 		return nil, err
 	}
@@ -230,9 +232,9 @@ func (a *adfAdapter) Usage() (*Usage, error) {
 	}
 	return &Usage{
 		FormattedCapacity:   u.FormattedCapacity,
-		FormattedDesc:       "880 KiB",
+		FormattedDesc:       u.FormattedDesc,
 		UnformattedCapacity: u.UnformattedCapacity,
-		UnformattedDesc:     "1 MB",
+		UnformattedDesc:     u.UnformattedDesc,
 		SectorSize:          u.SectorSize,
 		TotalSectors:        u.TotalSectors,
 		InUseSectors:        u.InUseSectors,

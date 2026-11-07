@@ -2,7 +2,10 @@ package adf_test
 
 import (
 	"bytes"
+	"encoding/binary"
+	"math/rand"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/adf"
@@ -102,9 +105,9 @@ func TestOpenAndListRoot(t *testing.T) {
 	}
 }
 
-// TestSimpleADF uses a small OFS disk with files, folders and icons.
-func TestSimpleADF(t *testing.T) {
-	const testFile = "../../images/amiga/simple.adf"
+// TestOFSDisk uses a small OFS disk with files, nested folders and icons.
+func TestOFSDisk(t *testing.T) {
+	const testFile = "../../images/amiga/ofs.adf"
 	raw, err := os.ReadFile(testFile)
 	if err != nil {
 		t.Fatalf("failed to read test file: %v", err)
@@ -162,11 +165,107 @@ func TestSimpleADF(t *testing.T) {
 		t.Error("ReadFile(nope) succeeded, want not found error")
 	}
 
+	// Nested folders.
+	for path, want := range map[string]string{
+		"":              ".info Disk.info level1/ level1.info MyFolder/ note note.info Trashcan/ Trashcan.info",
+		"level1":        ".info level2/ level2.info",
+		"LEVEL1/level2": "",
+		"MyFolder":      "",
+		"Trashcan":      "note2 note2.info",
+	} {
+		entries, err := fs.ListDir(path)
+		if err != nil {
+			t.Errorf("ListDir(%q) failed: %v", path, err)
+			continue
+		}
+		var got []string
+		for _, e := range entries {
+			n := e.Name
+			if e.IsDir {
+				n += "/"
+			}
+			got = append(got, n)
+		}
+		if strings.Join(got, " ") != want {
+			t.Errorf("ListDir(%q) = %q, want %q", path, got, want)
+		}
+	}
+	if c, err := fs.ReadFile("Trashcan/note2"); err != nil || len(c) != 21 {
+		t.Errorf("ReadFile(Trashcan/note2) = %d bytes, %v", len(c), err)
+	}
+	for _, path := range []string{"note/x", "nope/x", "level1/nope"} {
+		if _, err := fs.ListDir(path); err == nil {
+			t.Errorf("ListDir(%q) succeeded, want error", path)
+		}
+	}
+
 	u, err := fs.DiskUsage()
 	if err != nil {
 		t.Fatalf("DiskUsage failed: %v", err)
 	}
 	if u.TotalSectors != 1760 || u.InUseSectors != 28 || u.FreeSectors != 1732 || u.TotalBytes != int64(len(raw)) {
 		t.Errorf("DiskUsage() = %+v, want Total=1760 InUse=28 Free=1732", u)
+	}
+}
+
+// TestBuiltDisks reads OFS and FFS disks built by diskBuilder: nested
+// folders, and a file large enough to need an extension block.
+func TestBuiltDisks(t *testing.T) {
+	big := make([]byte, 100*512+123)
+	rand.New(rand.NewSource(1)).Read(big)
+	for _, ffs := range []bool{false, true} {
+		b := newDisk(ffs, "Built")
+		a := b.dir(rootBlock, "a")
+		sub := b.dir(a, "b")
+		b.dir(sub, "c")
+		b.file(rootBlock, "readme", []byte("hello amiga\n"))
+		b.file(sub, "big", big)
+		b.file(rootBlock, "empty", nil)
+		raw := b.bytes()
+
+		fs, err := adf.Open(bytes.NewReader(raw), int64(len(raw)))
+		if err != nil {
+			t.Fatalf("ffs=%v: Open failed: %v", ffs, err)
+		}
+		wantFS := map[bool]string{false: "Amiga OFS", true: "Amiga FFS"}[ffs]
+		if f := fs.Format(); f.Filesystem != wantFS || fs.DiskName() != "Built" {
+			t.Errorf("ffs=%v: Format %+v, name %q", ffs, f, fs.DiskName())
+		}
+		got, err := fs.ReadFile("A/B/big")
+		if err != nil || !bytes.Equal(got, big) {
+			t.Errorf("ffs=%v: ReadFile(A/B/big) = %d bytes, %v; want %d identical bytes", ffs, len(got), err, len(big))
+		}
+		if c, err := fs.ReadFile("readme"); err != nil || string(c) != "hello amiga\n" {
+			t.Errorf("ffs=%v: ReadFile(readme) = %q, %v", ffs, c, err)
+		}
+		if c, err := fs.ReadFile("empty"); err != nil || len(c) != 0 {
+			t.Errorf("ffs=%v: ReadFile(empty) = %q, %v", ffs, c, err)
+		}
+		if entries, err := fs.ListDir("a/b"); err != nil || len(entries) != 2 || entries[0].Name != "big" || entries[0].Size != uint32(len(big)) || !entries[1].IsDir {
+			t.Errorf("ffs=%v: ListDir(a/b) = %+v, %v", ffs, entries, err)
+		}
+		u, err := fs.DiskUsage()
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Boot blocks, root, bitmap and every allocated block are in use.
+		if want := 2 + len(b.used); u.InUseSectors != want || u.InUseSectors+u.FreeSectors != 1760 {
+			t.Errorf("ffs=%v: usage %+v, want %d in use", ffs, u, want)
+		}
+		var dump bytes.Buffer
+		if err := fs.Dump(&dump); err != nil || !strings.Contains(dump.String(), "[FILE] a/b/big") || !strings.Contains(dump.String(), "[DIR ] a/b/c/") {
+			t.Errorf("ffs=%v: dump:\n%s", ffs, dump.String())
+		}
+	}
+
+	// A damaged OFS data block (wrong sequence number) is reported.
+	b := newDisk(false, "Bad")
+	h := b.file(rootBlock, "f", make([]byte, 1000))
+	raw := b.bytes()
+	second := binary.BigEndian.Uint32(raw[int(h)*512+24+70*4:])
+	binary.BigEndian.PutUint32(raw[int(second)*512+8:], 7)
+	fs, _ := adf.Open(bytes.NewReader(raw), int64(len(raw)))
+	if _, err := fs.ReadFile("f"); err == nil || !strings.Contains(err.Error(), "invalid OFS data block") {
+		t.Errorf("ReadFile with a bad data block: %v", err)
 	}
 }

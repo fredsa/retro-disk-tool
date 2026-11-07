@@ -14,6 +14,6 @@ Sources, from the [Apple II Documentation Project](https://mirrors.apple2.org.za
 - `Apple Pascal/Disk Images/`: `Apple Pascal - Disk 0.po`
 - `Apple CPM/Disk Images/`: `CPAM 3.5.po`
 
-From [4am's WOZ-A-Day collection](https://archive.org/details/wozaday) on archive.org:
+From [ftp.apple.asimov.net](https://mirrors.apple2.org.za/ftp.apple.asimov.net/images/masters/):
 
-- `Triple-Dump.woz`: [Triple-Dump (DOS 3.3)](https://archive.org/details/wozaday_Triple_Dump) (`00playable.woz`)
+- `images/masters/`: `DOS 3.2 System Master.woz`

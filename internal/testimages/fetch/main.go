@@ -1,4 +1,4 @@
-// Command fetch downloads all test images that are missing locally.
+// Command fetch downloads all test images that are missing into downloads/.
 //
 //	go run ./internal/testimages/fetch
 package main
@@ -14,7 +14,7 @@ import (
 func main() {
 	failed := false
 	for _, img := range testimages.Manifest {
-		path := filepath.Join("images", img.Dir, img.Name)
+		path := filepath.Join("downloads", img.Dir, img.Name)
 		if err := testimages.Fetch(img); err != nil {
 			fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
 			failed = true

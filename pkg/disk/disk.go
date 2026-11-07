@@ -94,6 +94,42 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 			return nil, err
 		}
 		return &d64Adapter{d: d}, nil
+	case ".d81":
+		d, err := c64.OpenD81(r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &d64Adapter{d: d}, nil
+	case ".g64":
+		g, err := c64.OpenG64(r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &d64Adapter{d: g}, nil
+	case ".tap":
+		t, err := c64.OpenTAP(r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &d64Adapter{d: t}, nil
+	case ".dfi":
+		d, err := c64.OpenDFI(r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &d64Adapter{d: d}, nil
+	case ".tcrt":
+		t, err := c64.OpenTCRT(r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &d64Adapter{d: t}, nil
+	case ".t64":
+		t, err := c64.OpenT64(r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &d64Adapter{d: t}, nil
 	case ".prg":
 		p, err := c64.OpenPRG(filename, r, size)
 		if err != nil {
@@ -216,8 +252,18 @@ func (a *adfAdapter) Dump(w io.Writer) error {
 	return a.fs.Dump(w)
 }
 
+// c64Image is a C64 disk image or archive.
+type c64Image interface {
+	Format() *util.FormatInfo
+	Header() *c64.DiskHeaderInfo
+	List() ([]c64.ListEntry, error)
+	Usage() (*c64.DiskUsageInfo, error)
+	ReadFile(path string) ([]byte, error)
+	Dump(w io.Writer) error
+}
+
 type d64Adapter struct {
-	d *c64.D64Disk
+	d c64Image
 }
 
 func (a *d64Adapter) Header() *DiskHeader {
@@ -232,8 +278,20 @@ func (a *d64Adapter) Header() *DiskHeader {
 	}
 }
 
-func (a *d64Adapter) List() ([]Entry, error) {
-	compat, err := a.d.List()
+func (a *d64Adapter) List() ([]Entry, error) { return a.ListDir("") }
+
+func (a *d64Adapter) ListDir(path string) ([]Entry, error) {
+	var compat []c64.ListEntry
+	var err error
+	if dl, ok := a.d.(interface {
+		ListDir(string) ([]c64.ListEntry, error)
+	}); ok {
+		compat, err = dl.ListDir(path)
+	} else if path == "" {
+		compat, err = a.d.List()
+	} else {
+		err = fmt.Errorf("subdirectories are not supported for this disk format")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -267,12 +325,21 @@ func (a *d64Adapter) Usage() (*Usage, error) {
 		InUseSectors:        u.InUseSectors,
 		FreeSectors:         u.FreeSectors,
 		BAMSectors:          u.BAMSectors,
+		ExtraSectors:        u.ExtraSectors,
 		TotalBytes:          u.TotalBytes,
 		InUseBytes:          u.InUseBytes,
 		FreeBytes:           u.FreeBytes,
 		BAMBytes:            u.BAMBytes,
+		ExtraBytes:          u.ExtraBytes,
 		HasUsage:            u.HasUsage,
 	}, nil
+}
+
+func (a *d64Adapter) Warnings() []string {
+	if wr, ok := a.d.(Warner); ok {
+		return wr.Warnings()
+	}
+	return nil
 }
 
 func (a *d64Adapter) ReadFile(path string) ([]byte, error) {

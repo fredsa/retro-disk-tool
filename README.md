@@ -8,8 +8,15 @@ System   | Extension | Capacity | Medium  | Cyclinder | Heads | Sectors | Bytes 
 ---------|-----------|----------|---------|-----------|-------|---------|----------------
 Amiga    | `ADF`     | 880 KiB  | DD 3.5" | 80        | 2     | 11      | 512
 C64      | `D64`     | 170 KiB  | SS 5.25"| 35        | 1     | 17-21   | 256
+C64      | `D64` (40 / 42 tracks) | 192 / 200 KiB | SS 5.25" | 40 / 42 | 1 | 17-21 | 256
+C64      | `D81`     | 800 KiB  | DS 3.5" | 80        | 2     | 20      | 256
+C64      | `G64`     | 170 KiB  | SS 5.25"| 35-42     | 1     | 17-21   | 256 (GCR)
+C64      | `DFI`     | N/A      | File    | N/A       | N/A   | 256     | 256
+C64      | `T64`     | N/A      | Tape    | N/A       | N/A   | N/A     | N/A
+C64      | `TAP`     | N/A      | Tape    | N/A       | N/A   | N/A     | N/A
 C64      | `PRG`     | N/A      | File    | N/A       | N/A   | N/A     | N/A
 C64      | `CRT`     | N/A      | Cart    | N/A       | N/A   | N/A     | N/A
+C64      | `TCRT`    | N/A      | Cart    | N/A       | N/A   | N/A     | N/A
 Apple II | `D13`     | 113 KiB  | SS 5.25"| 35        | 1     | 13      | 256
 Apple II | `DO`, `DSK` | 140 KiB | SS 5.25"| 35        | 1     | 16      | 256
 Apple II | `PO`      | 140 KiB  | SS 5.25"| 35        | 1     | 16      | 256
@@ -24,6 +31,20 @@ IBM PC   | `IMG`, `IMA`, `VFD` | 160 KiB - 2.88 MiB | 5.25" / 3.5" | 40 / 80 | 1
 
 Apple II images may hold Apple DOS 3.x (13 or 16 sector) or ProDOS volumes. `NIB` and `WOZ` (v1 and v2)
 images are decoded from their GCR nibble / bitstream data (5-and-3 and 6-and-2 encoding).
+
+C64 disk images (`D64`, `D81`, decoded `G64`, `DFI`) share one CBM DOS reader:
+- `D64` images may have 35, 40 or 42 tracks and an error table. For 40 track images, the tracks 36-40 BAM extension
+  (SpeedDOS, DolphinDOS or other locations) is chosen by checking which one agrees with the sectors the files use;
+  tracks no BAM covers are reported as `Extra`.
+- `D81` partitions formatted as sub-directories are listed as directories (`ls -r`, `cat DIR/NAME`).
+- `G64` GCR bitstreams are decoded sector by sector (headers, data blocks, checksums); sectors that can't be decoded
+  (e.g. copy protection) are reported.
+- `DFI` is the DreamLoad file archive format.
+- Files whose block chain is shorter than their directory entry, or leaves their partition, are marked as corrupt.
+
+`T64` tape archives, `TAP` tape images (files saved with the standard ROM loader; turbo loader data is reported but
+not decoded) and `TCRT` tapecart images (the TapcrtFileSys directory, or the fastload program) list their files;
+`cat` returns programs with their 2 byte load address, like a `PRG` file.
 
 ZX81 `P` files are memory images saved from the system variables at $4009; `P81` files add the program name and may
 hold several programs. `cat` returns a program's `P` data, and `dump` shows its system variables and BASIC listing.

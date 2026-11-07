@@ -138,6 +138,13 @@ func TestRunLsFormat(t *testing.T) {
 		{"test_data/mfgamania.img", []string{"Platform:   Atari 8-bit", "XFD (raw sector image, 128 byte sectors, all bits inverted)", "Atari DOS 2.0S"}},
 		{"test_data/maxell.img", []string{"Platform:   IBM PC", "IMG (raw sector image; filesystem in the first 720 of 1440 sectors)", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
 		{"test_data/T80M4UPG.IMD", []string{"Platform:   TRS-80 Model 4", "IMD (ImageDisk 1.10, 250 kbps MFM)", "Filesystem: TRSDOS 6.2", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
+		{"test_data/test/ultima iv.d81", []string{"Platform:   Commodore 64", "D81 (1581 disk image, 80 tracks)", "80 tracks, 2 heads, 20 sectors/track, 256 bytes/sector"}},
+		{"test_data/test/40 tracks/the_sun.d64", []string{"D64 (1541 disk image, 40 tracks)", "Filesystem: CBM DOS (SpeedDOS 40 track BAM)"}},
+		{"test_data/test/force.g64", []string{"G64 (GCR-1541 bitstream image, 84 half-tracks)", "35 tracks, 1 head, 17-21 sectors/track"}},
+		{"test_data/test/lemmings.dfi", []string{"DFI (DreamLoad file archive, version 1.0, 14 tracks of 256 sectors)", "Filesystem: DreamLoad"}},
+		{"test_data/test/choppin_mall.t64", []string{"T64 (tape archive, version 1.0, 1 of 30 entries used)"}},
+		{"test_data/test/1942.tap", []string{"TAP (raw tape image, version 1, C64, PAL, 718070 pulses)"}},
+		{"test_data/test/war64.tcrt", []string{"TCRT (tapecart image, version 1, 2012 KiB flash)", "Filesystem: TapcrtFileSys"}},
 		{"test_data/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
 		{"test_data/EF3 Adrian Toolset.crt", []string{"CRT (cartridge image, version 1.0"}},
 	}
@@ -473,5 +480,46 @@ func TestRunLsIMD(t *testing.T) {
 	stdout.Reset()
 	if code := run([]string{"cat", "test_data/T80M4DOS.IMD", "BASIC/CMD"}, &stdout, &stderr); code != 0 || stdout.Len() != 21584 {
 		t.Errorf("cat BASIC/CMD = code %d, %d bytes", code, stdout.Len())
+	}
+}
+
+func TestRunLsC64Containers(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "-l", "-r", "test_data/test/partitions/0912.d64.d81"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("ls -l -r 0912.d64.d81 = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{
+		"  d       61440                     \"CODING TOOLS/\"",
+		"  ?        7112                     \"COPIES 1541+1581/BURSTNIBBLER 1.9\"",
+		"Warning: broken directory on disk",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+
+	stdout.Reset()
+	if code := run([]string{"ls", "test_data/test/smashtv.g64"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("ls smashtv.g64 = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{
+		"Warning: 2 sectors could not be decoded from the GCR data (1/5, 6/18)",
+		"  Extra:   14.8%    119 sectors (30,464 bytes)",
+		"  Total:  100.0%    802 sectors (205,312 bytes)",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+
+	stdout.Reset()
+	if code := run([]string{"cat", "test_data/test/war64.tcrt", "Arkanoid"}, &stdout, &stderr); code != 0 || stdout.Len() != 34242 {
+		t.Errorf("cat war64.tcrt Arkanoid = code %d, %d bytes", code, stdout.Len())
+	}
+
+	stderr.Reset()
+	if code := run([]string{"ls", "test_data/test/40 tracks/lotus esprit turbo challenge (1992)(gremlin) [s1].d64"}, &stdout, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), "invalid D64 disk size: 808 bytes") {
+		t.Errorf("ls of an HTML page saved as .d64 = code %d, stderr %q", code, stderr.String())
 	}
 }

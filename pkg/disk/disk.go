@@ -12,6 +12,7 @@ import (
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/atari"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/c64"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/ibm"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/trs80"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/zx81"
 )
@@ -101,10 +102,18 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 		return &atariAdapter{a: a}, nil
 	case ".img", ".ima", ".vfd":
 		d, err := ibm.Open(r, size)
-		if err != nil {
+		if err == nil {
+			return &ibmAdapter{d: d}, nil
+		}
+		if ext != ".img" {
 			return nil, err
 		}
-		return &ibmAdapter{d: d}, nil
+		// .img is also used for TRS-80 raw sector images.
+		t, terr := trs80.Open(r, size)
+		if terr != nil {
+			return nil, fmt.Errorf("unrecognized disk image: IBM PC: %v; TRS-80: %v", err, terr)
+		}
+		return &trs80Adapter{d: t}, nil
 	case ".p", ".p81":
 		z, err := zx81.Open(filename, r, size)
 		if err != nil {
@@ -542,3 +551,59 @@ func (a *zx81Adapter) Usage() (*Usage, error) { return &Usage{}, nil }
 func (a *zx81Adapter) ReadFile(path string) ([]byte, error) { return a.f.ReadFile(path) }
 
 func (a *zx81Adapter) Dump(w io.Writer) error { return a.f.Dump(w) }
+
+type trs80Adapter struct {
+	d *trs80.Disk
+}
+
+func (a *trs80Adapter) Format() *util.FormatInfo { return a.d.Format() }
+
+func (a *trs80Adapter) Header() *DiskHeader {
+	label := a.d.Label()
+	if label == "" {
+		return nil
+	}
+	return &DiskHeader{Name: label}
+}
+
+func (a *trs80Adapter) List() ([]Entry, error) {
+	entries, err := a.d.List()
+	if err != nil {
+		return nil, err
+	}
+	res := make([]Entry, len(entries))
+	for i, e := range entries {
+		res[i] = Entry{
+			Name:    e.Name,
+			Size:    e.Size,
+			Corrupt: e.Corrupt,
+			Error:   e.Error,
+		}
+	}
+	return res, nil
+}
+
+func (a *trs80Adapter) Usage() (*Usage, error) {
+	u, err := a.d.Usage()
+	if err != nil {
+		return nil, err
+	}
+	return &Usage{
+		FormattedCapacity:   u.FormattedCapacity,
+		FormattedDesc:       u.FormattedDesc,
+		UnformattedCapacity: u.UnformattedCapacity,
+		UnformattedDesc:     u.UnformattedDesc,
+		SectorSize:          u.SectorSize,
+		TotalSectors:        u.TotalSectors,
+		InUseSectors:        u.InUseSectors,
+		FreeSectors:         u.FreeSectors,
+		TotalBytes:          u.TotalBytes,
+		InUseBytes:          u.InUseBytes,
+		FreeBytes:           u.FreeBytes,
+		HasUsage:            true,
+	}, nil
+}
+
+func (a *trs80Adapter) ReadFile(path string) ([]byte, error) { return a.d.ReadFile(path) }
+
+func (a *trs80Adapter) Dump(w io.Writer) error { return a.d.Dump(w) }

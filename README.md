@@ -17,6 +17,7 @@ Apple II | `NIB`     | 140 KiB  | SS 5.25"| 35        | 1     | 13 / 16 | 256
 Apple II | `WOZ`     | 140 KiB  | SS 5.25"| 35        | 1     | 13 / 16 | 256
 Atari 8-bit | `ATR` | 90 KiB   | SS 5.25"| 40        | 1     | 18      | 128
 ZX81     | `P`, `P81` | N/A    | File    | N/A       | N/A   | N/A     | N/A
+TRS-80 Model III | `IMG` | 180 KiB | SS 5.25"| 40   | 1     | 18      | 256
 IBM PC   | `IMG`, `IMA`, `VFD` | 160 KiB - 2.88 MiB | 5.25" / 3.5" | 40 / 80 | 1 / 2 | 8 - 36 | 512
 
 Apple II images may hold Apple DOS 3.x (13 or 16 sector) or ProDOS volumes. `NIB` and `WOZ` (v1 and v2)
@@ -24,6 +25,9 @@ images are decoded from their GCR nibble / bitstream data (5-and-3 and 6-and-2 e
 
 ZX81 `P` files are memory images saved from the system variables at $4009; `P81` files add the program name and may
 hold several programs. `cat` returns a program's `P` data, and `dump` shows its system variables and BASIC listing.
+
+TRS-80 Model III images hold TRSDOS 1.3 volumes; files are named `NAME/EXT` (`cat` also accepts `NAME.EXT`).
+`IMG` files are checked for an IBM PC FAT volume first.
 
 IBM PC images may hold FAT12, FAT16 or FAT32 volumes, including long file names, DOS 1.x floppies without a
 BPB, and MBR partitioned hard disk images. `ls` and `cat` accept paths such as `DOS` and `DOS/README.TXT`, and

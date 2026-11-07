@@ -132,6 +132,7 @@ func TestRunLsFormat(t *testing.T) {
 		{"test_data/lpmud.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
 		{"test_data/ZX81_Kong (Paul Farrow 2010) [V1-01].p", []string{"Platform:   Sinclair ZX81", "P (program file, memory image from $4009)"}},
 		{"test_data/ZX81_Kong (Paul Farrow 2010) [V1-01].P81", []string{"Platform:   Sinclair ZX81", "P81 (named program file, 1 program)"}},
+		{"test_data/trs80profileiii.img", []string{"Platform:   TRS-80 Model III", "IMG (raw sector image)", "Filesystem: TRSDOS 1.3", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
 		{"test_data/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
 		{"test_data/EF3 Adrian Toolset.crt", []string{"CRT (cartridge image, version 1.0"}},
 	}
@@ -366,5 +367,28 @@ func TestRunLsP81(t *testing.T) {
 	stdout.Reset()
 	if code := run([]string{"cat", path, "ZX81 KONG"}, &stdout, &stderr); code != 0 || stdout.Len() != 12513 {
 		t.Errorf("cat ZX81 KONG = code %d, %d bytes; want 0, 12513 bytes", code, stdout.Len())
+	}
+}
+
+func TestRunLsTRS80(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "-l", "test_data/trs80profileiii.img"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l trs80profileiii.img) = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{
+		"Label:\n  TRSDOS\n",
+		"  -        5120                     BASIC/CMD\n",
+		"  -        9195                     EFCD/CMD\n",
+		"Formatted:   180 KiB (184,320 bytes)",
+		"In-use:  58.8%    423 sectors",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+
+	stdout.Reset()
+	if code := run([]string{"cat", "test_data/trs80profileiii.img", "RM/CMD"}, &stdout, &stderr); code != 0 || stdout.Len() != 3384 {
+		t.Errorf("cat RM/CMD = code %d, %d bytes; want 0, 3384 bytes", code, stdout.Len())
 	}
 }

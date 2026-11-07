@@ -158,6 +158,64 @@ func TestDOS31MasterNIB(t *testing.T) {
 	}
 }
 
+func TestWOZ(t *testing.T) {
+	// A WOZ2 bitstream image of a DOS 3.3 disk (Triple-Dump).
+	img, err := openImage(t, "Triple-Dump.woz")
+	if err != nil {
+		t.Fatalf("apple2.Open failed: %v", err)
+	}
+	if f := img.Format(); f.Image != `WOZ2 (bitstream image, created by "Applesauce v1.38")` || f.Filesystem != "Apple DOS 3.3" || f.Sectors != "16" {
+		t.Errorf("Format() = %+v", f)
+	}
+	entries, err := img.List()
+	if err != nil {
+		t.Fatalf("List() failed: %v", err)
+	}
+	if len(entries) != 86 {
+		t.Fatalf("len(entries) = %d, want 86", len(entries))
+	}
+	if entries[0].Name != "STARTUP" || entries[0].Size != 2013 {
+		t.Errorf("entries[0] = %+v, want STARTUP (2013 bytes)", entries[0])
+	}
+	for _, e := range entries {
+		if e.Corrupt {
+			t.Errorf("%s is corrupt: %s", e.Name, e.Error)
+		}
+	}
+	usage, err := img.Usage()
+	if err != nil {
+		t.Fatalf("Usage() failed: %v", err)
+	}
+	if usage.TotalSectors != 560 || usage.InUseSectors != 529 || usage.FreeSectors != 31 {
+		t.Errorf("Usage() = %+v, want Total=560, InUse=529, Free=31", usage)
+	}
+
+	// STARTUP is an Applesoft program: a 2 byte length, then lines linked
+	// by their memory addresses (from $0801) up to a zero link. Decoding
+	// errors would break the chain.
+	prog, err := img.ReadFile("STARTUP")
+	if err != nil {
+		t.Fatalf("ReadFile(STARTUP) failed: %v", err)
+	}
+	n := int(prog[0]) | int(prog[1])<<8
+	p, lines, last := 2, 0, -1
+	for p+4 <= len(prog) {
+		link := int(prog[p]) | int(prog[p+1])<<8
+		if link == 0 {
+			break
+		}
+		num := int(prog[p+2]) | int(prog[p+3])<<8
+		if num <= last {
+			t.Fatalf("line %d follows line %d", num, last)
+		}
+		last, lines = num, lines+1
+		p = link - 0x801 + 2
+	}
+	if lines != 53 || last != 530 || p != n {
+		t.Errorf("STARTUP: %d lines, last %d, program ends at %d; want 53 lines, last 530, ending at its length %d", lines, last, p, n)
+	}
+}
+
 func TestDOS33August1980(t *testing.T) {
 	img, err := openImage(t, "Apple DOS 3.3 August 1980.dsk")
 	if err != nil {

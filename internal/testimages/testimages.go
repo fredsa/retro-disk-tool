@@ -38,6 +38,9 @@ var Manifest = []Image{
 		143360, "84bb9e1db42cc3d005657e4f61d5e908c2a89f8069e65a9cb22c5cc55bc47c76"},
 	{"apple", "ProDOS 2.4.2.dsk", appleOS + "Apple%20ProDOS/Disk%20Images/ProDOS%202.4.2.dsk",
 		143360, "d1e6fab8d9a25acf6e10ffa15e4120a616898c03613ab87a8e12882b12102543"},
+	// A WOZ bitstream image from 4am's WOZ-A-Day collection.
+	{"apple", "Triple-Dump.woz", "https://archive.org/download/wozaday_Triple_Dump/00playable.woz",
+		241477, "e22789c6c73c3dea0279609ca900aa8826aafdb7b00e7b5bca84c3c9ebdfc0b4"},
 	{"apple", "Apple Pascal - Disk 0.po", appleOS + "Apple%20Pascal/Disk%20Images/Apple%20Pascal%20-%20Disk%200.po",
 		143360, "ff5ce078485f98b1990a56c93843f153c1c4f85928ad1bf70e4eaebd354d22fc"},
 	{"apple", "CPAM 3.5.po", appleOS + "Apple%20CPM/Disk%20Images/CPAM%203.5.po",

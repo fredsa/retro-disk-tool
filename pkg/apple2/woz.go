@@ -74,6 +74,9 @@ func openWOZ(data []byte) (Image, error) {
 		}
 		off += 8 + chunkSize
 	}
+	if off != len(data) {
+		return nil, fmt.Errorf("invalid WOZ file: %d trailing bytes after the last chunk", len(data)-off)
+	}
 
 	if len(info) < 37 {
 		return nil, fmt.Errorf("missing or invalid WOZ INFO chunk")

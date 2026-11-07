@@ -58,15 +58,20 @@ func OpenCRT(filename string, r io.ReaderAt, size int64) (*CRTFile, error) {
 	}
 	cartName := DecodeBytes(rawName[:nameEnd])
 
-	// Read CHIP packets
+	// Read CHIP packets, which must account for the rest of the file.
+	if headerSize < 0x40 || int64(headerSize) > size {
+		return nil, fmt.Errorf("invalid CRT header size: %d", headerSize)
+	}
 	var chips []CRTChip
 	offset := int(headerSize)
-	for offset+16 <= len(data) {
-		chipSig := string(data[offset : offset+4])
-		if chipSig != "CHIP" {
-			break
+	for offset < len(data) {
+		if offset+16 > len(data) || string(data[offset:offset+4]) != "CHIP" {
+			return nil, fmt.Errorf("invalid CHIP packet at offset %d", offset)
 		}
 		totalPacketLen := binary.BigEndian.Uint32(data[offset+4 : offset+8])
+		if totalPacketLen < 16 || int64(offset)+int64(totalPacketLen) > size {
+			return nil, fmt.Errorf("invalid CHIP packet length %d at offset %d", totalPacketLen, offset)
+		}
 		chipType := binary.BigEndian.Uint16(data[offset+8 : offset+10])
 		bank := binary.BigEndian.Uint16(data[offset+10 : offset+12])
 		loadAddr := binary.BigEndian.Uint16(data[offset+12 : offset+14])
@@ -80,9 +85,6 @@ func OpenCRT(filename string, r io.ReaderAt, size int64) (*CRTFile, error) {
 			DataOffset: offset + 16,
 		})
 
-		if totalPacketLen == 0 {
-			break
-		}
 		offset += int(totalPacketLen)
 	}
 

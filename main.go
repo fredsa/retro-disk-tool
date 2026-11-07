@@ -346,6 +346,11 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 			inUsePct, formatWithCommas(usage.InUseSectors), formatWithCommas(usage.InUseBytes))
 		fmt.Fprintf(stdout, "  Free:   %5.1f%% %6s sectors (%s bytes)\n",
 			freePct, formatWithCommas(usage.FreeSectors), formatWithCommas(usage.FreeBytes))
+		if usage.ExtraSectors > 0 {
+			extraPct := (float64(usage.ExtraSectors) / float64(usage.TotalSectors)) * 100.0
+			fmt.Fprintf(stdout, "  Extra:  %5.1f%% %6s sectors (%s bytes)\n",
+				extraPct, formatWithCommas(usage.ExtraSectors), formatWithCommas(usage.ExtraBytes))
+		}
 		fmt.Fprintf(stdout, "  Total:  %5.1f%% %6s sectors (%s bytes)\n",
 			100.0, formatWithCommas(usage.TotalSectors), formatWithCommas(usage.TotalBytes))
 	}

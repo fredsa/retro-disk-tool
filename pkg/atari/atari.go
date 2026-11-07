@@ -83,13 +83,15 @@ func Open(r io.ReaderAt, size int64) (*Disk, error) {
 	}
 	imageSize := paragraphs * 16
 	data := raw[atrHeaderLen:]
-	if imageSize > len(data) {
-		return nil, fmt.Errorf("truncated ATR image: header says %d bytes, file has %d", imageSize, len(data))
+	if imageSize != len(data) {
+		return nil, fmt.Errorf("ATR size mismatch: header says %d bytes of sectors, file has %d", imageSize, len(data))
 	}
-	data = data[:imageSize]
-
-	if secSize == 256 && len(data) < 3*128 {
-		return nil, fmt.Errorf("ATR image too small")
+	whole := len(data)%128 == 0
+	if secSize == 256 {
+		whole = len(data) >= 3*128 && (len(data)-3*128)%256 == 0
+	}
+	if !whole {
+		return nil, fmt.Errorf("ATR image size %d is not a whole number of %d byte sectors", len(data), secSize)
 	}
 	return newDisk(data, secSize, false)
 }

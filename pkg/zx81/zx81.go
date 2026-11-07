@@ -45,7 +45,6 @@ type File struct {
 	filename string
 	p81      bool
 	programs []Program
-	extra    int // trailing bytes after the last program
 }
 
 // Open parses a P or P81 file. The format is selected by the extension.
@@ -61,8 +60,10 @@ func Open(filename string, r io.ReaderAt, size int64) (*File, error) {
 			return nil, err
 		}
 		name := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+		if len(data) != len(raw) {
+			return nil, fmt.Errorf("P file size %d does not match program size %d (E_LINE)", len(raw), len(data))
+		}
 		f.programs = []Program{{Name: name, Data: data}}
-		f.extra = len(raw) - len(data)
 		return f, nil
 	}
 
@@ -72,23 +73,16 @@ func Open(filename string, r io.ReaderAt, size int64) (*File, error) {
 			n++
 		}
 		if n >= len(raw) || raw[n]&0x80 == 0 {
-			if len(f.programs) > 0 {
-				break // trailing junk
-			}
-			return nil, fmt.Errorf("invalid P81 file: program name not terminated")
+			return nil, fmt.Errorf("invalid P81 file: program %d name not terminated", len(f.programs)+1)
 		}
 		native, name := decodeName(raw[:n+1])
 		data, err := programData(raw[n+1:])
 		if err != nil {
-			if len(f.programs) > 0 {
-				break
-			}
-			return nil, fmt.Errorf("program %q: %w", name, err)
+			return nil, fmt.Errorf("program %d %q: %w", len(f.programs)+1, name, err)
 		}
 		f.programs = append(f.programs, Program{Name: name, Native: native, Data: data})
 		raw = raw[n+1+len(data):]
 	}
-	f.extra = len(raw)
 	return f, nil
 }
 
@@ -205,9 +199,6 @@ func (f *File) Format() *util.FormatInfo {
 func (f *File) Dump(w io.Writer) error {
 	fmt.Fprintf(w, "Sinclair ZX81 Program File Dump\n")
 	fmt.Fprintf(w, "  File: %s\n", filepath.Base(f.filename))
-	if f.extra > 0 {
-		fmt.Fprintf(w, "  Trailing bytes: %d\n", f.extra)
-	}
 	for _, p := range f.programs {
 		dFile, vars, eLine := p.word(addrDFile), p.word(addrVars), p.word(addrELine)
 		fmt.Fprintf(w, "  Program: %q\n", p.Name)

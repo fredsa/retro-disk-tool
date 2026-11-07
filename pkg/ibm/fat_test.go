@@ -130,18 +130,44 @@ func TestBadSectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// maxell.img is a 720 KiB disk (Greaseweazle image) holding a 360 KiB
+	// filesystem; every sector after the filesystem is unreadable.
 	d, err := ibm.Open(bytes.NewReader(raw), int64(len(raw)))
 	if err != nil {
-		t.Fatalf("Open failed: %v", err)
+		t.Fatalf("Open(maxell.img) failed: %v", err)
 	}
 	w := d.Warnings()
-	if len(w) != 2 ||
-		!strings.Contains(w[0], "720 extra sectors after the first 720 (720 of them unreadable)") ||
+	if len(w) != 2 || w[0] != "the FAT12 filesystem covers only the first 720 of 1440 sectors; the other 720 sectors are unreadable" ||
 		!strings.Contains(w[1], "274 unreadable sectors") || !strings.Contains(w[1], "1 of them in the boot sector, FAT or root directory") {
 		t.Errorf("Warnings = %q", w)
 	}
-	if fm := d.Format(); fm.Tracks != 40 || fm.Heads != 2 {
-		t.Errorf("Format = %+v, want 40 tracks, 2 heads", fm)
+	if fm := d.Format(); fm.Tracks != 80 || fm.Heads != 2 || fm.Sectors != "9" {
+		t.Errorf("Format = %+v, want 80 tracks, 2 heads, 9 sectors", fm)
+	}
+	u, _ := d.Usage()
+	if u.TotalSectors != 1440 || u.InUseSectors != 12 || u.FreeSectors != 708 || u.ExtraSectors != 720 ||
+		u.TotalBytes != int64(len(raw)) || u.InUseBytes+u.FreeBytes+u.ExtraBytes != u.TotalBytes || u.UnformattedDesc != "1 MB" {
+		t.Errorf("Usage = %+v", u)
+	}
+
+	// A readable sector after the filesystem means the image does not match.
+	partial := append([]byte{}, raw...)
+	copy(partial[1000*512:1001*512], make([]byte, 512))
+	if _, err := ibm.Open(bytes.NewReader(partial), int64(len(partial))); err == nil ||
+		!strings.Contains(err.Error(), "image size 737280 does not match the FAT filesystem size 368640") {
+		t.Errorf("Open(maxell.img with a readable sector after the filesystem) error = %v, want size mismatch", err)
+	}
+
+	// The first 360 KiB alone is a complete 40 track image.
+	d, err = ibm.Open(bytes.NewReader(raw[:368640]), 368640)
+	if err != nil {
+		t.Fatalf("Open(maxell.img[:360K]) failed: %v", err)
+	}
+	if w := d.Warnings(); len(w) != 1 || !strings.Contains(w[0], "274 unreadable sectors") {
+		t.Errorf("Warnings = %q", w)
+	}
+	if fm := d.Format(); fm.Tracks != 40 {
+		t.Errorf("Format = %+v, want 40 tracks", fm)
 	}
 
 	// A file with an unreadable sector is reported as corrupt.
@@ -164,5 +190,21 @@ func TestBadSectors(t *testing.T) {
 	}
 	if w := d.Warnings(); len(w) != 1 || !strings.HasPrefix(w[0], "1 unreadable sectors in the filesystem") || strings.Contains(w[0], "listing may be incomplete") {
 		t.Errorf("Warnings = %q", w)
+	}
+}
+
+func TestSizeMismatch(t *testing.T) {
+	img, err := os.ReadFile("../../test_data/lpmud.img")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string][]byte{
+		"extra byte":    append(append([]byte{}, img...), 0),
+		"extra sector":  append(append([]byte{}, img...), make([]byte, 512)...),
+		"missing bytes": img[:len(img)-512],
+	} {
+		if _, err := ibm.Open(bytes.NewReader(data), int64(len(data))); err == nil {
+			t.Errorf("Open(%s) succeeded, want size mismatch error", name)
+		}
 	}
 }

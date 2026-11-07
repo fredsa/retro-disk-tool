@@ -48,9 +48,11 @@ type DiskUsage struct {
 	TotalSectors        int
 	InUseSectors        int
 	FreeSectors         int
+	ExtraSectors        int // unreadable sectors after the filesystem
 	TotalBytes          int64
 	InUseBytes          int64
 	FreeBytes           int64
+	ExtraBytes          int64
 }
 
 // bpb holds the BIOS Parameter Block fields needed to read the volume.
@@ -74,10 +76,13 @@ type bpb struct {
 
 // Disk is an opened FAT volume.
 type Disk struct {
-	image     []byte // the whole image file
 	data      []byte // volume data (starting at the boot sector)
 	partition int    // MBR partition number (1-4), 0 for an unpartitioned image
 	partOff   int    // byte offset of the partition in the image
+	sectors   int    // sectors in the image (from the partition start)
+	spt       int    // geometry of the image: sectors per track
+	heads     int    //   and heads
+	extra     int    // unreadable sectors after the filesystem
 	b         bpb
 	fatBits   int // 12, 16 or 32
 	fatStart  int // byte offsets
@@ -112,7 +117,7 @@ func Open(r io.ReaderAt, size int64) (*Disk, error) {
 		return nil, fmt.Errorf("failed to read image: %w", err)
 	}
 
-	d := &Disk{image: raw, data: raw}
+	d := &Disk{data: raw}
 	b, ok := parseBPB(raw)
 	if !ok {
 		if off, n := findPartition(raw); off > 0 {
@@ -127,6 +132,19 @@ func Open(r io.ReaderAt, size int64) (*Disk, error) {
 		}
 	}
 	d.b = b
+	// The filesystem (plus the MBR area before a partition) must account for
+	// every byte of the image. The one exception is a standard floppy image
+	// whose filesystem is smaller than the disk, when every sector after the
+	// filesystem is unreadable (e.g. a 360 KiB format on a 720 KiB disk).
+	d.sectors, d.spt, d.heads = b.totalSectors, b.secPerTrack, b.heads
+	if vol := d.partOff + b.totalSectors*b.bytesPerSec; vol != len(raw) {
+		g, ok := unreadableTail(raw, vol, b.bytesPerSec)
+		if d.partition != 0 || !ok {
+			return nil, fmt.Errorf("image size %d does not match the FAT filesystem size %d", len(raw), vol)
+		}
+		d.sectors, d.spt, d.heads = len(raw)/b.bytesPerSec, g.spt, g.h
+		d.extra = d.sectors - b.totalSectors
+	}
 
 	d.fatStart = b.reserved * b.bytesPerSec
 	rootSectors := (b.rootEntries*dirEntrySize + b.bytesPerSec - 1) / b.bytesPerSec
@@ -216,6 +234,24 @@ func inferBPB(raw []byte) (bpb, bool) {
 		}
 	}
 	return bpb{}, false
+}
+
+// unreadableTail reports whether raw is a standard floppy image whose
+// sectors after the first vol bytes are all unreadable, and returns the
+// image's geometry.
+func unreadableTail(raw []byte, vol, bs int) (g struct{ spt, h int }, ok bool) {
+	if bs != 512 || vol >= len(raw) {
+		return g, false
+	}
+	for _, fg := range floppyGeometries {
+		if fg.size == len(raw) {
+			g.spt, g.h, ok = fg.spt, fg.h, true
+		}
+	}
+	for o := vol; ok && o < len(raw); o += bs {
+		ok = util.IsBadSector(raw[o : o+bs])
+	}
+	return g, ok
 }
 
 // findPartition returns the byte offset and number of the first FAT
@@ -476,23 +512,17 @@ func (d *Disk) badSectorsIn(clusters []uint32) int {
 	return n
 }
 
-// badSectors returns the unreadable sectors (numbered from the start of the
-// image) inside and beyond the filesystem.
-func (d *Disk) badSectors() (inside, beyond []int) {
+// badSectors returns the unreadable sectors of the filesystem, numbered
+// from the start of the image.
+func (d *Disk) badSectors() []int {
+	var bad []int
 	bs := d.b.bytesPerSec
-	start := d.partOff / bs
-	end := start + d.b.totalSectors
-	for s := 0; (s+1)*bs <= len(d.image); s++ {
-		if !util.IsBadSector(d.image[s*bs : (s+1)*bs]) {
-			continue
-		}
-		if s >= start && s < end {
-			inside = append(inside, s)
-		} else {
-			beyond = append(beyond, s)
+	for s := 0; s < d.b.totalSectors; s++ {
+		if util.IsBadSector(d.data[s*bs : (s+1)*bs]) {
+			bad = append(bad, d.partOff/bs+s)
 		}
 	}
-	return inside, beyond
+	return bad
 }
 
 // badSystemSectors counts the bad sectors (as returned by badSectors) that
@@ -509,35 +539,22 @@ func (d *Disk) badSystemSectors(bad []int) int {
 	return n
 }
 
-// extraSectors returns the number of image sectors after the end of the
-// filesystem (unpartitioned images only).
-func (d *Disk) extraSectors() int {
-	if d.partition != 0 {
-		return 0
-	}
-	return (len(d.image) - d.b.totalSectors*d.b.bytesPerSec) / d.b.bytesPerSec
-}
-
-// Warnings describes problems with the image: unreadable sectors and data
-// beyond the end of the filesystem.
+// Warnings describes problems with the image, such as unreadable sectors.
 func (d *Disk) Warnings() []string {
 	var w []string
-	inside, beyond := d.badSectors()
-	if extra := d.extraSectors(); extra > 0 {
-		msg := fmt.Sprintf("image is larger than the FAT%d filesystem: %d extra sectors after the first %d", d.fatBits, extra, d.b.totalSectors)
-		if len(beyond) > 0 {
-			msg += fmt.Sprintf(" (%d of them unreadable)", len(beyond))
-		}
-		w = append(w, msg)
+	if d.extra > 0 {
+		w = append(w, fmt.Sprintf("the FAT%d filesystem covers only the first %d of %d sectors; the other %d sectors are unreadable",
+			d.fatBits, d.b.totalSectors, d.sectors, d.extra))
 	}
-	if len(inside) > 0 {
-		msg := fmt.Sprintf("%d unreadable sectors in the filesystem (filled with %q by the imaging tool)", len(inside), util.BadSectorMarker)
-		if n := d.badSystemSectors(inside); n > 0 {
-			msg += fmt.Sprintf("; %d of them in the boot sector, FAT or root directory, so the listing may be incomplete", n)
-		}
-		w = append(w, msg)
+	bad := d.badSectors()
+	if len(bad) == 0 {
+		return w
 	}
-	return w
+	msg := fmt.Sprintf("%d unreadable sectors in the filesystem (filled with %q by the imaging tool)", len(bad), util.BadSectorMarker)
+	if n := d.badSystemSectors(bad); n > 0 {
+		msg += fmt.Sprintf("; %d of them in the boot sector, FAT or root directory, so the listing may be incomplete", n)
+	}
+	return append(w, msg)
 }
 
 // List returns the root directory entries.
@@ -623,28 +640,28 @@ func (d *Disk) Label() string {
 
 // tracks returns the number of tracks (cylinders), or 0 if unknown.
 func (d *Disk) tracks() int {
-	perCyl := d.b.secPerTrack * d.b.heads
-	if perCyl == 0 || d.b.totalSectors%perCyl != 0 {
+	perCyl := d.spt * d.heads
+	if perCyl == 0 || d.sectors%perCyl != 0 {
 		return 0
 	}
-	return d.b.totalSectors / perCyl
+	return d.sectors / perCyl
 }
 
 // unformatted returns the raw (unformatted) capacity of standard floppy
 // disks, based on sectors per track (data rate) and tracks.
 func (d *Disk) unformatted() (int64, string) {
-	t, h := d.tracks(), d.b.heads
+	t, h := d.tracks(), d.heads
 	switch {
 	case d.partition != 0 || t == 0:
-	case d.b.secPerTrack <= 9 && t == 40: // 5.25" DD, 250 kbit/s at 300 rpm
+	case d.spt <= 9 && t == 40: // 5.25" DD, 250 kbit/s at 300 rpm
 		return int64(250000 * h), fmt.Sprintf("%d KB", 250*h)
-	case d.b.secPerTrack <= 9 && t == 80: // 3.5" DD
+	case d.spt <= 9 && t == 80: // 3.5" DD
 		return int64(500000 * h), map[int]string{1: "500 KB", 2: "1 MB"}[h]
-	case d.b.secPerTrack == 15 && t == 80: // 5.25" HD, 500 kbit/s at 360 rpm
+	case d.spt == 15 && t == 80: // 5.25" HD, 500 kbit/s at 360 rpm
 		return 1666666, "1.6 MB"
-	case d.b.secPerTrack == 18 && t == 80: // 3.5" HD
+	case d.spt == 18 && t == 80: // 3.5" HD
 		return 2000000, "2 MB"
-	case d.b.secPerTrack == 36 && t == 80: // 3.5" ED
+	case d.spt == 36 && t == 80: // 3.5" ED
 		return 4000000, "4 MB"
 	}
 	return 0, ""
@@ -658,8 +675,9 @@ func (d *Disk) Usage() (*DiskUsage, error) {
 			freeClusters++
 		}
 	}
-	total := d.b.totalSectors
+	total := d.sectors
 	free := freeClusters * d.b.secPerClus
+	inUse := d.b.totalSectors - free
 	sz := int64(d.b.bytesPerSec)
 	totalBytes := int64(total) * sz
 	desc := fmt.Sprintf("%d KiB", (totalBytes+512)/1024)
@@ -674,17 +692,22 @@ func (d *Disk) Usage() (*DiskUsage, error) {
 		UnformattedDesc:     udesc,
 		SectorSize:          d.b.bytesPerSec,
 		TotalSectors:        total,
-		InUseSectors:        total - free,
+		InUseSectors:        inUse,
 		FreeSectors:         free,
+		ExtraSectors:        d.extra,
 		TotalBytes:          totalBytes,
-		InUseBytes:          int64(total-free) * sz,
+		InUseBytes:          int64(inUse) * sz,
 		FreeBytes:           int64(free) * sz,
+		ExtraBytes:          int64(d.extra) * sz,
 	}, nil
 }
 
 // Format describes the image format and geometry.
 func (d *Disk) Format() *util.FormatInfo {
 	image := "IMG (raw sector image)"
+	if d.extra > 0 {
+		image = fmt.Sprintf("IMG (raw sector image; filesystem in the first %d of %d sectors)", d.b.totalSectors, d.sectors)
+	}
 	if d.partition != 0 {
 		image = fmt.Sprintf("IMG (raw disk image, MBR partition %d)", d.partition)
 	}
@@ -697,8 +720,8 @@ func (d *Disk) Format() *util.FormatInfo {
 		Image:      image,
 		Filesystem: fs,
 		Tracks:     d.tracks(),
-		Heads:      d.b.heads,
-		Sectors:    fmt.Sprintf("%d", d.b.secPerTrack),
+		Heads:      d.heads,
+		Sectors:    fmt.Sprintf("%d", d.spt),
 		SectorSize: d.b.bytesPerSec,
 	}
 }
@@ -759,7 +782,11 @@ func (d *Disk) Dump(w io.Writer) error {
 	fmt.Fprintf(w, "  Bytes/sector: %d, Sectors/cluster: %d, Reserved sectors: %d\n", b.bytesPerSec, b.secPerClus, b.reserved)
 	fmt.Fprintf(w, "  FATs: %d x %d sectors, Root entries: %d\n", b.numFATs, b.fatSize, b.rootEntries)
 	fmt.Fprintf(w, "  Total sectors: %d, Data clusters: %d\n", b.totalSectors, d.clusters)
-	fmt.Fprintf(w, "  Geometry: %d tracks, %d heads, %d sectors/track\n", d.tracks(), b.heads, b.secPerTrack)
+	fmt.Fprintf(w, "  BPB geometry: %d heads, %d sectors/track\n", b.heads, b.secPerTrack)
+	fmt.Fprintf(w, "  Image geometry: %d tracks, %d heads, %d sectors/track (%d sectors)\n", d.tracks(), d.heads, d.spt, d.sectors)
+	if d.extra > 0 {
+		fmt.Fprintf(w, "  Unreadable sectors after filesystem: %d (sectors %d-%d)\n", d.extra, b.totalSectors, d.sectors-1)
+	}
 	if b.serial != 0 {
 		fmt.Fprintf(w, "  Volume serial: %04X-%04X\n", b.serial>>16, b.serial&0xFFFF)
 	}
@@ -767,12 +794,8 @@ func (d *Disk) Dump(w io.Writer) error {
 	if u, err := d.Usage(); err == nil {
 		fmt.Fprintf(w, "  In-use: %d sectors, Free: %d sectors, Total: %d sectors\n", u.InUseSectors, u.FreeSectors, u.TotalSectors)
 	}
-	inside, beyond := d.badSectors()
-	if len(inside) > 0 {
-		fmt.Fprintf(w, "  Unreadable sectors in filesystem (%d): %s\n", len(inside), util.FormatRanges(inside))
-	}
-	if extra := d.extraSectors(); extra > 0 {
-		fmt.Fprintf(w, "  Extra sectors after filesystem: %d (%d unreadable)\n", extra, len(beyond))
+	if bad := d.badSectors(); len(bad) > 0 {
+		fmt.Fprintf(w, "  Unreadable sectors in filesystem (%d): %s\n", len(bad), util.FormatRanges(bad))
 	}
 	fmt.Fprintf(w, "  Directory tree:\n")
 	d.dumpDir(w, 0, "", 0)

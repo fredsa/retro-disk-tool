@@ -34,9 +34,13 @@ with all bits inverted, are detected and corrected automatically.
 
 `IMG` files are checked for an IBM PC FAT volume, then TRS-80 TRSDOS 1.3, then Atari DOS 2.x.
 
-`ls` warns about sectors the imaging tool could not read (filled with `-=[BAD SECTOR]=-`) and, for IBM PC images,
-about data beyond the end of the filesystem (e.g. a 360 KiB disk imaged as 720 KiB). Files containing unreadable
-sectors are marked as corrupt.
+Every byte of a file must be accounted for: a file whose size does not exactly match its format (for example
+trailing bytes after a program or cartridge) is rejected rather than partially interpreted.
+
+For IBM PC images, `ls` warns about sectors the imaging tool (e.g. Greaseweazle) could not read, which are filled
+with `-=[BAD SECTOR]=-`; files containing unreadable sectors are marked as corrupt. A standard floppy image may hold
+a smaller filesystem (e.g. a 360 KiB format on a 720 KiB disk) only if every sector after the filesystem is
+unreadable; those sectors are reported as `Extra` in the usage, so the total always matches the file size.
 
 IBM PC images may hold FAT12, FAT16 or FAT32 volumes, including long file names, DOS 1.x floppies without a
 BPB, and MBR partitioned hard disk images. `ls` and `cat` accept paths such as `DOS` and `DOS/README.TXT`, and

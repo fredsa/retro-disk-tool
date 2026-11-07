@@ -134,3 +134,16 @@ func TestOpenErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestTrailingBytes(t *testing.T) {
+	for _, ext := range []string{".p", ".P81"} {
+		raw, err := os.ReadFile(kong + ext)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw = append(raw, 0)
+		if _, err := Open(kong+ext, bytes.NewReader(raw), int64(len(raw))); err == nil {
+			t.Errorf("Open(%s + 1 byte) succeeded, want error", ext)
+		}
+	}
+}

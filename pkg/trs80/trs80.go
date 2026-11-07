@@ -73,8 +73,11 @@ type Disk struct {
 // Open parses a raw TRS-80 Model III disk image.
 func Open(r io.ReaderAt, size int64) (*Disk, error) {
 	trackSize := int64(sectorsPerTrack * sectorSize)
-	if size == 0 || size%trackSize != 0 || size/trackSize > 96 {
+	if size == 0 || size%trackSize != 0 {
 		return nil, fmt.Errorf("not a TRS-80 Model III image: size %d is not a multiple of %d byte tracks", size, trackSize)
+	}
+	if size/trackSize > 96 {
+		return nil, fmt.Errorf("not a TRS-80 Model III image: %d tracks is too many for a single sided disk", size/trackSize)
 	}
 	data := make([]byte, size)
 	if _, err := r.ReadAt(data, 0); err != nil {

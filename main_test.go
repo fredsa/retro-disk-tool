@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -134,7 +136,7 @@ func TestRunLsFormat(t *testing.T) {
 		{"test_data/ZX81_Kong (Paul Farrow 2010) [V1-01].P81", []string{"Platform:   Sinclair ZX81", "P81 (named program file, 1 program)"}},
 		{"test_data/trs80profileiii.img", []string{"Platform:   TRS-80 Model III", "IMG (raw sector image)", "Filesystem: TRSDOS 1.3", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
 		{"test_data/mfgamania.img", []string{"Platform:   Atari 8-bit", "XFD (raw sector image, 128 byte sectors, all bits inverted)", "Atari DOS 2.0S"}},
-		{"test_data/maxell.img", []string{"Platform:   IBM PC", "Filesystem: FAT12", "40 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
+		{"test_data/maxell.img", []string{"Platform:   IBM PC", "IMG (raw sector image; filesystem in the first 720 of 1440 sectors)", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
 		{"test_data/flipandflop.prg", []string{"PRG (program file, load address $0801)"}},
 		{"test_data/EF3 Adrian Toolset.crt", []string{"CRT (cartridge image, version 1.0"}},
 	}
@@ -401,16 +403,37 @@ func TestRunLsWarnings(t *testing.T) {
 		t.Fatalf("run(ls maxell.img) = %d (stderr: %s)", code, stderr.String())
 	}
 	for _, w := range []string{
-		"\nWarning: image is larger than the FAT12 filesystem: 720 extra sectors after the first 720 (720 of them unreadable)\n",
+		"\nWarning: the FAT12 filesystem covers only the first 720 of 1440 sectors; the other 720 sectors are unreadable\n",
 		"Warning: 274 unreadable sectors in the filesystem",
+		"Formatted:   720 KiB (737,280 bytes)",
+		"  In-use:   0.8%     12 sectors (6,144 bytes)\n" +
+			"  Free:    49.2%    708 sectors (362,496 bytes)\n" +
+			"  Extra:   50.0%    720 sectors (368,640 bytes)\n" +
+			"  Total:  100.0%  1,440 sectors (737,280 bytes)\n",
 	} {
 		if !strings.Contains(stdout.String(), w) {
 			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
 		}
 	}
 
+	// A 360 KiB filesystem with readable data after it is rejected.
+	raw, err := os.ReadFile("test_data/maxell.img")
+	if err != nil {
+		t.Fatal(err)
+	}
+	copy(raw[1000*512:1001*512], make([]byte, 512))
+	path := filepath.Join(t.TempDir(), "partial.img")
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stderr.Reset()
+	if code := run([]string{"ls", path}, &stdout, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), "unrecognized disk image:\n  IBM PC: image size 737280 does not match the FAT filesystem size 368640\n  TRS-80: ") {
+		t.Errorf("ls partial.img = code %d, stderr %q; want size mismatch error", code, stderr.String())
+	}
+
 	stdout.Reset()
-	if code := run([]string{"ls", "test_data/lpmud.img"}, &stdout, &stderr); code != 0 || strings.Contains(stdout.String(), "Warning") {
-		t.Errorf("ls lpmud.img = code %d, want no warnings; got:\n%s", code, stdout.String())
+	if code := run([]string{"ls", "test_data/lpmud.img"}, &stdout, &stderr); code != 0 || strings.Contains(stdout.String(), "Warning") || strings.Contains(stdout.String(), "Extra:") {
+		t.Errorf("ls lpmud.img = code %d, want no warnings or extra sectors; got:\n%s", code, stdout.String())
 	}
 }

@@ -66,3 +66,31 @@ func TestOpenXFDRejects(t *testing.T) {
 		}
 	}
 }
+
+func TestATRSize(t *testing.T) {
+	raw, err := os.ReadFile("../../test_data/mfgamania.img")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sectors := make([]byte, len(raw))
+	for i, b := range raw {
+		sectors[i] = ^b
+	}
+	atr := func(paragraphs int, data []byte) []byte {
+		h := []byte{0x96, 0x02, byte(paragraphs), byte(paragraphs >> 8), 128, 0, byte(paragraphs >> 16), 0, 0, 0, 0, 0, 0, 0, 0, 0}
+		return append(h, data...)
+	}
+	good := atr(len(sectors)/16, sectors)
+	if _, err := atari.Open(bytes.NewReader(good), int64(len(good))); err != nil {
+		t.Fatalf("Open(ATR) failed: %v", err)
+	}
+	for name, data := range map[string][]byte{
+		"trailing byte":   append(append([]byte{}, good...), 0),
+		"header too long": atr(len(sectors)/16+1, sectors),
+		"partial sector":  atr(len(sectors)/16+1, append(append([]byte{}, sectors...), make([]byte, 16)...)),
+	} {
+		if _, err := atari.Open(bytes.NewReader(data), int64(len(data))); err == nil {
+			t.Errorf("Open(%s) succeeded, want error", name)
+		}
+	}
+}

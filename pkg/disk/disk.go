@@ -39,10 +39,12 @@ type Usage struct {
 	InUseSectors        int
 	FreeSectors         int
 	BAMSectors          int // System / BAM sectors (e.g. 19 sectors on C64 Track 18)
+	ExtraSectors        int // Unreadable sectors outside the filesystem
 	TotalBytes          int64
 	InUseBytes          int64
 	FreeBytes           int64
 	BAMBytes            int64
+	ExtraBytes          int64
 	HasUsage            bool // false for non-disk single files like PRG / CRT
 }
 
@@ -123,7 +125,7 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 		if aerr == nil {
 			return &atariAdapter{a: a}, nil
 		}
-		return nil, fmt.Errorf("unrecognized disk image: IBM PC: %v; TRS-80: %v; Atari: %v", err, terr, aerr)
+		return nil, fmt.Errorf("unrecognized disk image:\n  IBM PC: %v\n  TRS-80: %v\n  Atari:  %v", err, terr, aerr)
 	case ".xfd":
 		a, err := atari.OpenXFD(r, size)
 		if err != nil {
@@ -531,9 +533,11 @@ func (a *ibmAdapter) Usage() (*Usage, error) {
 		TotalSectors:        u.TotalSectors,
 		InUseSectors:        u.InUseSectors,
 		FreeSectors:         u.FreeSectors,
+		ExtraSectors:        u.ExtraSectors,
 		TotalBytes:          u.TotalBytes,
 		InUseBytes:          u.InUseBytes,
 		FreeBytes:           u.FreeBytes,
+		ExtraBytes:          u.ExtraBytes,
 		HasUsage:            true,
 	}, nil
 }

@@ -86,12 +86,12 @@ func TestRunLsFormat(t *testing.T) {
 	}{
 		{"images/Workbench v1.0 (1985)(Commodore).adf", []string{"Platform:   Amiga", "Amiga OFS", "80 tracks, 2 heads, 11 sectors/track, 512 bytes/sector"}},
 		{"images/dos.atr", []string{"Platform:   Atari 8-bit", "ATR (disk image", "Atari DOS 2.0S", "40 tracks, 1 head, 18 sectors/track, 128 bytes/sector"}},
-		{"images/lpmud.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
 		{"images/ZX81_Kong (Paul Farrow 2010) [V1-01].p", []string{"Platform:   Sinclair ZX81", "P (program file, memory image from $4009)"}},
 		{"images/ZX81_Kong (Paul Farrow 2010) [V1-01].P81", []string{"Platform:   Sinclair ZX81", "P81 (named program file, 1 program)"}},
+		{"images/ibm/144mb.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 18 sectors/track, 512 bytes/sector"}},
+		{"images/ibm/720kb.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
 		{"images/trs80profileiii.img", []string{"Platform:   TRS-80 Model III", "IMG (raw sector image)", "Filesystem: TRSDOS 1.3", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
 		{"images/mfgamania.img", []string{"Platform:   Atari 8-bit", "XFD (raw sector image, 128 byte sectors, all bits inverted)", "Atari DOS 2.0S"}},
-		{"images/maxell.img", []string{"Platform:   IBM PC", "IMG (raw sector image; filesystem in the first 720 of 1440 sectors)", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
 		{"images/T80M4UPG.IMD", []string{"Platform:   TRS-80 Model 4", "IMD (ImageDisk 1.10, 250 kbps MFM)", "Filesystem: TRSDOS 6.2", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
 	}
 	for _, tt := range tests {
@@ -188,16 +188,17 @@ func TestRunLsATR(t *testing.T) {
 
 func TestRunLsIMG(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ls", "-l", "images/lpmud.img"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run(ls -l lpmud.img) = %d (stderr: %s)", code, stderr.String())
+	if code := run([]string{"ls", "-l", "images/ibm/144mb.img"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l 144mb.img) = %d (stderr: %s)", code, stderr.String())
 	}
 	for _, w := range []string{
-		"  d           0 1993-02-21 22:25:26 DOSP11/\n",
-		"  d           0 2026-01-24 09:57:46 .fseventsd/\n",
-		"Formatted:   720 KiB (737,280 bytes)",
-		"Unformatted:    1 MB (1,000,000 bytes)",
-		"In-use:  37.6%    542 sectors",
-		"Free:    62.4%    898 sectors",
+		"Label:\n  FLOPPY\n",
+		"  -           6 2026-11-07 15:29:06 README.TXT\n",
+		"  d           0 2026-11-07 15:30:38 DIR1/\n",
+		"Formatted:   1440 KiB (1,474,560 bytes)",
+		"Unformatted:     2 MB (2,000,000 bytes)",
+		"In-use:   1.9%     56 sectors",
+		"Free:    98.1%  2,824 sectors",
 	} {
 		if !strings.Contains(stdout.String(), w) {
 			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
@@ -205,45 +206,47 @@ func TestRunLsIMG(t *testing.T) {
 	}
 
 	stdout.Reset()
-	if code := run([]string{"cat", "images/lpmud.img", "DOSP11/LPMUD.ARJ"}, &stdout, &stderr); code != 0 || stdout.Len() != 264730 {
-		t.Errorf("cat DOSP11/LPMUD.ARJ = code %d, %d bytes; want 0, 264730 bytes", code, stdout.Len())
+	if code := run([]string{"cat", "images/ibm/144mb.img", "DIR1/FOO.TXT"}, &stdout, &stderr); code != 0 || stdout.String() != "foo was here\n" {
+		t.Errorf("cat DIR1/FOO.TXT = code %d, %q", code, stdout.String())
 	}
 }
 
 func TestRunLsSubdir(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ls", "-l", "images/lpmud.img", "DOSP11"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run(ls -l lpmud.img DOSP11) = %d (stderr: %s)", code, stderr.String())
+	if code := run([]string{"ls", "-l", "images/ibm/720kb.img", "DIR1"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l 720kb.img DIR1) = %d (stderr: %s)", code, stderr.String())
 	}
-	want := "Contents of DOSP11/:\n  Type     Size Modified            Name\n  -      264730 1993-02-21 22:24:12 LPMUD.ARJ\n"
+	want := "Contents of DIR1/:\n  Type     Size Modified            Name\n  -          13 2026-11-07 15:35:50 FOO.TXT\n"
 	if !strings.Contains(stdout.String(), want) {
 		t.Errorf("stdout missing %q; got:\n%s", want, stdout.String())
 	}
 
 	stdout.Reset()
-	if code := run([]string{"ls", "images/lpmud.img", "/.fseventsd/"}, &stdout, &stderr); code != 0 ||
+	if code := run([]string{"ls", "images/ibm/720kb.img", "/.fseventsd/"}, &stdout, &stderr); code != 0 ||
 		!strings.Contains(stdout.String(), "Contents of .fseventsd/:\n  fseventsd-uuid\n") {
-		t.Errorf("ls lpmud.img /.fseventsd/ = code %d; got:\n%s", code, stdout.String())
+		t.Errorf("ls 720kb.img /.fseventsd/ = code %d; got:\n%s", code, stdout.String())
 	}
 
-	for _, dir := range []string{"DOSP11/LPMUD.ARJ", "NOPE"} {
+	for _, dir := range []string{"DIR1/FOO.TXT", "NOPE"} {
 		stderr.Reset()
-		if code := run([]string{"ls", "images/lpmud.img", dir}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), dir) {
-			t.Errorf("ls lpmud.img %s = code %d, stderr %q; want error", dir, code, stderr.String())
+		if code := run([]string{"ls", "images/ibm/720kb.img", dir}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), dir) {
+			t.Errorf("ls 720kb.img %s = code %d, stderr %q; want error", dir, code, stderr.String())
 		}
 	}
 }
 
 func TestRunLsRecursive(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ls", "-l", "-r", "images/lpmud.img"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run(ls -l -r lpmud.img) = %d (stderr: %s)", code, stderr.String())
+	if code := run([]string{"ls", "-l", "-r", "images/ibm/720kb.img"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l -r 720kb.img) = %d (stderr: %s)", code, stderr.String())
 	}
 	want := "Contents:\n  Type     Size Modified            Name\n" +
-		"  d           0 1993-02-21 22:25:26 DOSP11/\n" +
-		"  -      264730 1993-02-21 22:24:12 DOSP11/LPMUD.ARJ\n" +
-		"  d           0 2026-01-24 09:57:46 .fseventsd/\n" +
-		"  -          36 2026-01-24 09:58:06 .fseventsd/fseventsd-uuid\n"
+		"  d           0 2026-11-07 15:35:28 .fseventsd/\n" +
+		"  -          36 2026-11-07 15:35:28 .fseventsd/fseventsd-uuid\n" +
+		"  -          12 2026-11-07 15:35:34 HELLO.TXT\n" +
+		"  d           0 2026-11-07 15:35:42 DIR1/\n" +
+		"  -          13 2026-11-07 15:35:50 DIR1/FOO.TXT\n" +
+		"  d           0 2026-11-07 15:35:44 DIR2/\n"
 	if !strings.Contains(stdout.String(), want) {
 		t.Errorf("stdout missing %q; got:\n%s", want, stdout.String())
 	}
@@ -338,43 +341,50 @@ func TestRunLsTRS80(t *testing.T) {
 }
 
 func TestRunLsWarnings(t *testing.T) {
+	raw, err := os.ReadFile("images/ibm/720kb.img")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad := bytes.Repeat([]byte("-=[BAD SECTOR]=-"), 32)
+	write := func(name string, data []byte) string {
+		path := filepath.Join(t.TempDir(), name)
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	// A 720 KiB filesystem in a 1.44 MiB image whose other sectors are
+	// unreadable, with one unreadable sector in HELLO.TXT (sector 45).
+	img := append(append([]byte{}, raw...), bytes.Repeat(bad, 1440)...)
+	copy(img[45*512:], bad)
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ls", "images/maxell.img"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run(ls maxell.img) = %d (stderr: %s)", code, stderr.String())
+	if code := run([]string{"ls", write("bad.img", img)}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls bad.img) = %d (stderr: %s)", code, stderr.String())
 	}
 	for _, w := range []string{
-		"\nWarning: the FAT12 filesystem covers only the first 720 of 1440 sectors; the other 720 sectors are unreadable\n",
-		"Warning: 274 unreadable sectors in the filesystem",
-		"Formatted:   720 KiB (737,280 bytes)",
-		"  In-use:   0.8%     12 sectors (6,144 bytes)\n" +
-			"  Free:    49.2%    708 sectors (362,496 bytes)\n" +
-			"  Extra:   50.0%    720 sectors (368,640 bytes)\n" +
-			"  Total:  100.0%  1,440 sectors (737,280 bytes)\n",
+		"\nWarning: the FAT12 filesystem covers only the first 1440 of 2880 sectors; the other 1440 sectors are unreadable\n",
+		"Warning: 1 unreadable sectors in the filesystem (filled with \"-=[BAD SECTOR]=-\" by the imaging tool)\n",
+		"Formatted:   1440 KiB (1,474,560 bytes)",
+		"  Extra:   50.0%  1,440 sectors (737,280 bytes)\n",
+		"  Total:  100.0%  2,880 sectors (1,474,560 bytes)\n",
 	} {
 		if !strings.Contains(stdout.String(), w) {
 			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
 		}
 	}
 
-	// A 360 KiB filesystem with readable data after it is rejected.
-	raw, err := os.ReadFile("images/maxell.img")
-	if err != nil {
-		t.Fatal(err)
-	}
-	copy(raw[1000*512:1001*512], make([]byte, 512))
-	path := filepath.Join(t.TempDir(), "partial.img")
-	if err := os.WriteFile(path, raw, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	// Readable data after the filesystem is rejected.
+	copy(img[2000*512:2001*512], make([]byte, 512))
 	stderr.Reset()
-	if code := run([]string{"ls", path}, &stdout, &stderr); code != 1 ||
-		!strings.Contains(stderr.String(), "unrecognized disk image:\n  IBM PC: image size 737280 does not match the FAT filesystem size 368640\n  TRS-80: ") {
+	if code := run([]string{"ls", write("partial.img", img)}, &stdout, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), "unrecognized disk image:\n  IBM PC: image size 1474560 does not match the FAT filesystem size 737280\n  TRS-80: ") {
 		t.Errorf("ls partial.img = code %d, stderr %q; want size mismatch error", code, stderr.String())
 	}
 
 	stdout.Reset()
-	if code := run([]string{"ls", "images/lpmud.img"}, &stdout, &stderr); code != 0 || strings.Contains(stdout.String(), "Warning") || strings.Contains(stdout.String(), "Extra:") {
-		t.Errorf("ls lpmud.img = code %d, want no warnings or extra sectors; got:\n%s", code, stdout.String())
+	if code := run([]string{"ls", "images/ibm/720kb.img"}, &stdout, &stderr); code != 0 || strings.Contains(stdout.String(), "Warning") || strings.Contains(stdout.String(), "Extra:") {
+		t.Errorf("ls 720kb.img = code %d, want no warnings or extra sectors; got:\n%s", code, stdout.String())
 	}
 }
 

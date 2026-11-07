@@ -14,9 +14,10 @@ import (
 func TestFetch(t *testing.T) {
 	content := []byte("disk image bytes")
 	sum := sha256.Sum256(content)
-	requests := 0
+	requests, agent := 0, ""
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests++
+		agent = r.UserAgent()
 		if r.URL.Path == "/missing" {
 			http.NotFound(w, r)
 			return
@@ -25,7 +26,7 @@ func TestFetch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	img := Image{URL: srv.URL + "/disk", Size: int64(len(content)), SHA256: hex.EncodeToString(sum[:])}
+	img := Image{URL: srv.URL + "/disk", Size: int64(len(content)), SHA256: hex.EncodeToString(sum[:]), UserAgent: "MEATLOAF/"}
 	path := filepath.Join(t.TempDir(), "sub", "disk.dsk")
 	if err := fetchTo(path, img); err != nil {
 		t.Fatalf("fetchTo failed: %v", err)
@@ -33,6 +34,9 @@ func TestFetch(t *testing.T) {
 	got, err := os.ReadFile(path)
 	if err != nil || string(got) != string(content) {
 		t.Fatalf("fetched %q, %v", got, err)
+	}
+	if agent != "MEATLOAF/" {
+		t.Errorf("User-Agent = %q, want MEATLOAF/", agent)
 	}
 	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o644 {
 		t.Errorf("mode = %v, want 0644", fi.Mode().Perm())
@@ -69,5 +73,12 @@ func TestManifest(t *testing.T) {
 			t.Errorf("bad manifest entry %+v", img)
 		}
 		seen[key] = true
+	}
+}
+
+func TestMeatloafURL(t *testing.T) {
+	img := meatloaf("error info/0587_cpx_upheav rips.d64", 1, strings.Repeat("0", 64))
+	if want := "https://c64.meatloaf.cc/test/error%20info/0587_cpx_upheav%20rips.d64"; img.URL != want || img.UserAgent != "MEATLOAF/" {
+		t.Errorf("URL %q, User-Agent %q; want %q, MEATLOAF/", img.URL, img.UserAgent, want)
 	}
 }

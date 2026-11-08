@@ -209,6 +209,27 @@ func TestBadSectors(t *testing.T) {
 	}
 }
 
+// A file whose cluster chain ends before its directory size cannot be
+// read: cat must fail rather than print a truncated file.
+func TestShortChain(t *testing.T) {
+	raw := append([]byte{}, readImage(t, "720kb.img")...)
+	// HELLO.TXT is cluster 4 (12 bytes, one cluster); claim 2000 bytes.
+	root := raw[11*512 : 43*512]
+	for o := 0; o < len(root); o += 32 {
+		if string(root[o:o+11]) == "HELLO   TXT" {
+			root[o+28], root[o+29] = 0xD0, 0x07
+		}
+	}
+	d := openImage(t, raw)
+	if _, err := d.ReadFile("HELLO.TXT"); err == nil || !strings.Contains(err.Error(), "cluster chain holds 512 bytes, directory says 2000") {
+		t.Errorf("ReadFile(HELLO.TXT) error = %v", err)
+	}
+	entries, _ := d.List()
+	if e := entries[1]; !e.Corrupt || e.Error != "cluster chain too short: 1 clusters, need 4" {
+		t.Errorf("HELLO.TXT = %+v, want corrupt", e)
+	}
+}
+
 func TestSizeMismatch(t *testing.T) {
 	img := readImage(t, "144mb.img")
 	for name, data := range map[string][]byte{

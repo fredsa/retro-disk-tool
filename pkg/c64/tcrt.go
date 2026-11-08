@@ -106,6 +106,9 @@ func OpenTCRT(r io.ReaderAt, size int64) (*TCRTFile, error) {
 func (t *TCRTFile) readFS() error {
 	t.hasFS = true
 	for i := 0; i < 127; i++ {
+		if 47+32*i > len(t.flash) {
+			return fmt.Errorf("TapcrtFileSys directory extends beyond the %d byte flash", len(t.flash))
+		}
 		e := t.flash[15+32*i : 47+32*i]
 		if e[16] == 0xFF {
 			break

@@ -29,7 +29,7 @@ func printHelp(w io.Writer) {
 
 func printLsHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  rdt ls [-l] <file> [<dir>]")
+	fmt.Fprintln(w, "  rdt ls [-l] [-r] <file> [<dir>]")
 }
 
 func printDumpHelp(w io.Writer) {

@@ -10,6 +10,13 @@ import (
 // sectors they could not read.
 var BadSectorMarker = []byte("-=[BAD SECTOR]=-")
 
+// BadSectorFill returns n bytes of the repeated bad sector marker, as written
+// in place of a sector that could not be read.
+func BadSectorFill(n int) []byte {
+	m := len(BadSectorMarker)
+	return bytes.Repeat(BadSectorMarker, (n+m-1)/m)[:n]
+}
+
 // IsBadSector reports whether sec consists of the repeated bad sector marker.
 func IsBadSector(sec []byte) bool {
 	n := len(BadSectorMarker)

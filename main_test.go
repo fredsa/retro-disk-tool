@@ -507,3 +507,34 @@ func TestRunLsADF(t *testing.T) {
 		t.Errorf("dump = code %d; got:\n%s", code, stdout.String())
 	}
 }
+
+// A file name without a command is the same as ls -l.
+func TestRunDefaultLs(t *testing.T) {
+	for _, args := range [][]string{
+		{"images/ibm/720kb.img"},
+		{"images/ibm/720kb.img", "DIR1"},
+	} {
+		var got, want, stderr bytes.Buffer
+		if code := run(args, &got, &stderr); code != 0 {
+			t.Fatalf("run(%q) = %d (stderr: %s)", args, code, stderr.String())
+		}
+		run(append([]string{"ls", "-l"}, args...), &want, &stderr)
+		if got.String() != want.String() || !strings.Contains(got.String(), "Type     Size Modified            Name") {
+			t.Errorf("run(%q) output differs from ls -l:\n%s", args, got.String())
+		}
+	}
+
+	// Unknown commands, directories and missing files are still errors.
+	for _, arg := range []string{"nosuchcommand", "images", "images/nope.img"} {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{arg}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), "Unknown option or command: "+arg) {
+			t.Errorf("run(%q) = %d, stderr %q; want unknown command error", arg, code, stderr.String())
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	run([]string{"--help"}, &stdout, &stderr)
+	if !strings.Contains(stdout.String(), "rdt <file> [<dir>]                (same as rdt ls -l)") {
+		t.Errorf("help missing the default ls usage:\n%s", stdout.String())
+	}
+}

@@ -83,12 +83,14 @@ rdt -h | --help
 rdt ls -l workbench.adf
 rdt ls -l dos.img DOS
 rdt ls -l -r dos.img
+rdt workbench.adf
 rdt dump workbench.adf
 rdt cat workbench.adf Clock
 rdt terminal
 ```
 
 `ls` prints the disk image format (`Format:`), the disk label (`Label:`), and the file listing (`Contents:`).
+Running `rdt` with just a file (and optionally a directory) is the same as `rdt ls -l`.
 An optional directory argument lists a subdirectory instead of the root, on formats with subdirectories (Amiga,
 IBM PC, C64 D81 / DFI),
 and `-r` lists subdirectories recursively, naming each entry by its path.

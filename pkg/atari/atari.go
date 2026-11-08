@@ -1,6 +1,6 @@
 // Package atari reads Atari 8-bit ATR and raw (XFD) disk images containing
 // Atari DOS 2.x (2.0S single density, 2.5 enhanced density, 2.0D double
-// density) volumes.
+// density) or Atari DOS 3 volumes.
 package atari
 
 import (
@@ -53,6 +53,7 @@ type Disk struct {
 	numSectors int
 	raw        bool // headerless XFD image
 	inverted   bool // all bits were inverted in the image
+	dos3       bool // Atari DOS 3 filesystem (see dos3.go)
 }
 
 type rawEntry struct {
@@ -137,7 +138,12 @@ func newDisk(data []byte, secSize int, raw bool) (*Disk, error) {
 		vtoc, _ = d.readSector(vtocSector)
 	}
 	if vtoc[0] != 2 {
-		return nil, fmt.Errorf("unsupported Atari DOS type (VTOC code %d); only Atari DOS 2.x is supported", vtoc[0])
+		err3 := d.checkDOS3()
+		if err3 == nil {
+			d.dos3 = true
+			return d, nil
+		}
+		return nil, fmt.Errorf("unsupported Atari DOS: not DOS 2.x (VTOC code %d) and not DOS 3 (%v)", vtoc[0], err3)
 	}
 	if raw {
 		// Without an ATR header to go by, require a plausible VTOC.
@@ -233,6 +239,9 @@ func (d *Disk) readChain(start int) ([]byte, error) {
 
 // List returns the directory entries.
 func (d *Disk) List() ([]Entry, error) {
+	if d.dos3 {
+		return d.dos3List(), nil
+	}
 	var res []Entry
 	for _, re := range d.dirEntries() {
 		content, err := d.readChain(re.start)
@@ -253,6 +262,9 @@ func (d *Disk) List() ([]Entry, error) {
 
 // ReadFile returns the contents of a named file.
 func (d *Disk) ReadFile(name string) ([]byte, error) {
+	if d.dos3 {
+		return d.dos3ReadFile(name)
+	}
 	want := strings.ToUpper(strings.TrimPrefix(name, "/"))
 	for _, re := range d.dirEntries() {
 		if strings.ToUpper(re.name) == want {
@@ -294,6 +306,9 @@ func (d *Disk) freeSectors() (int, error) {
 // Usage computes sector usage from the VTOC bitmap(s).
 func (d *Disk) Usage() (*DiskUsage, error) {
 	free, err := d.freeSectors()
+	if d.dos3 {
+		free, err = d.dos3FreeSectors(), nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -322,6 +337,10 @@ func (d *Disk) Format() *util.FormatInfo {
 	fsName := "Atari DOS 2.0S"
 	sectors := "18"
 	switch {
+	case d.dos3 && d.isEnhanced():
+		fsName, sectors = "Atari DOS 3", "26"
+	case d.dos3:
+		fsName = "Atari DOS 3"
 	case d.isEnhanced():
 		fsName, sectors = "Atari DOS 2.5", "26"
 	case d.secSize == 256:
@@ -356,6 +375,13 @@ func (d *Disk) Dump(w io.Writer) error {
 	fmt.Fprintf(w, "  Image: %s\n", d.imageDesc())
 	fmt.Fprintf(w, "  Filesystem: %s\n", f.Filesystem)
 	fmt.Fprintf(w, "  Sector size: %d bytes, Sectors: %d (%d bytes)\n", d.secSize, d.numSectors, len(d.data))
+	if d.dos3 {
+		if u, err := d.Usage(); err == nil {
+			fmt.Fprintf(w, "  In-use: %d sectors, Free: %d sectors, Total: %d sectors\n", u.InUseSectors, u.FreeSectors, u.TotalSectors)
+		}
+		d.dos3Dump(w)
+		return nil
+	}
 	if vtoc, err := d.readSector(vtocSector); err == nil {
 		fmt.Fprintf(w, "  VTOC: DOS code %d, total data sectors %d, free sectors %d\n",
 			vtoc[0], binary.LittleEndian.Uint16(vtoc[1:3]), binary.LittleEndian.Uint16(vtoc[3:5]))

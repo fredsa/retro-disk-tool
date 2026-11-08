@@ -55,6 +55,7 @@ func TestRunLsFormat(t *testing.T) {
 		file        string
 		wantContain []string
 	}{
+		{"images/atari/atari800-720x128-dos3.atr", []string{"Platform:   Atari 8-bit", "ATR (disk image with 16 byte header, 128 byte sectors)", "Filesystem: Atari DOS 3", "40 tracks, 1 head, 18 sectors/track, 128 bytes/sector"}},
 		{"images/amiga/ofs.adf", []string{"Platform:   Amiga", "Amiga OFS", "80 tracks, 2 heads, 11 sectors/track, 512 bytes/sector"}},
 		{"images/ibm/144mb.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 18 sectors/track, 512 bytes/sector"}},
 		{"images/ibm/720kb.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
@@ -543,5 +544,26 @@ func TestRunDefaultLs(t *testing.T) {
 	run([]string{"--help"}, &stdout, &stderr)
 	if !strings.Contains(stdout.String(), "rdt <file> [<dir>]                (same as rdt ls -l -r)") {
 		t.Errorf("help missing the default ls usage:\n%s", stdout.String())
+	}
+}
+
+func TestRunAtariDOS3(t *testing.T) {
+	const path = "images/atari/atari800-720x128-dos3.atr"
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{path}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(%s) = %d (stderr: %s)", path, code, stderr.String())
+	}
+	for _, w := range []string{
+		"  -          44                     HELLO\n",
+		"  -          51                     HELLO.XEX\n",
+		"  Free:    94.4%    680 sectors (87,040 bytes)",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+	stdout.Reset()
+	if code := run([]string{"cat", path, "HELLO.XEX"}, &stdout, &stderr); code != 0 || stdout.Len() != 51 || !bytes.HasPrefix(stdout.Bytes(), []byte{0xFF, 0xFF}) {
+		t.Errorf("cat HELLO.XEX = code %d, %d bytes", code, stdout.Len())
 	}
 }

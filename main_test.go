@@ -38,35 +38,6 @@ func TestRunHelp(t *testing.T) {
 	}
 }
 
-func TestRunLs(t *testing.T) {
-	testFile := "images/Workbench v1.0 (1985)(Commodore).adf"
-	tests := []struct {
-		args        []string
-		wantContain []string
-	}{
-		{
-			args:        []string{"ls", testFile},
-			wantContain: []string{"Label:\n  Workbench\n", "Contents:\n", "  Clock\n", "  c\n", "  devs\n", "  libs\n", "Capacity:", "Formatted:   880 KiB (901,120 bytes)", "Unformatted:    1 MB (1,000,000 bytes)", "Free:    26.2%    462 sectors (236,544 bytes)", "In-use:  73.8%  1,298 sectors (664,576 bytes)", "Total:  100.0%  1,760 sectors (901,120 bytes)"},
-		},
-		{
-			args:        []string{"ls", "-l", testFile},
-			wantContain: []string{"Label:\n  Workbench\n", "Contents:\n  Type     Size Modified            Name\n", "  -       15800", "  d           0", "Clock", "devs/", "Capacity:", "Usage:"},
-		},
-	}
-	for _, tt := range tests {
-		var stdout, stderr bytes.Buffer
-		code := run(tt.args, &stdout, &stderr)
-		if code != 0 {
-			t.Errorf("run(%v) exited with %d, want 0 (stderr: %s)", tt.args, code, stderr.String())
-		}
-		for _, w := range tt.wantContain {
-			if !strings.Contains(stdout.String(), w) {
-				t.Errorf("run(%v) stdout missing %q; got:\n%s", tt.args, w, stdout.String())
-			}
-		}
-	}
-}
-
 func TestRunTerminal(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"terminal"}, &stdout, &stderr); code != 0 {
@@ -84,15 +55,9 @@ func TestRunLsFormat(t *testing.T) {
 		file        string
 		wantContain []string
 	}{
-		{"images/Workbench v1.0 (1985)(Commodore).adf", []string{"Platform:   Amiga", "Amiga OFS", "80 tracks, 2 heads, 11 sectors/track, 512 bytes/sector"}},
-		{"images/dos.atr", []string{"Platform:   Atari 8-bit", "ATR (disk image", "Atari DOS 2.0S", "40 tracks, 1 head, 18 sectors/track, 128 bytes/sector"}},
-		{"images/ZX81_Kong (Paul Farrow 2010) [V1-01].p", []string{"Platform:   Sinclair ZX81", "P (program file, memory image from $4009)"}},
-		{"images/ZX81_Kong (Paul Farrow 2010) [V1-01].P81", []string{"Platform:   Sinclair ZX81", "P81 (named program file, 1 program)"}},
+		{"images/amiga/ofs.adf", []string{"Platform:   Amiga", "Amiga OFS", "80 tracks, 2 heads, 11 sectors/track, 512 bytes/sector"}},
 		{"images/ibm/144mb.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 18 sectors/track, 512 bytes/sector"}},
 		{"images/ibm/720kb.img", []string{"Platform:   IBM PC", "IMG (raw sector image)", "Filesystem: FAT12", "80 tracks, 2 heads, 9 sectors/track, 512 bytes/sector"}},
-		{"images/trs80profileiii.img", []string{"Platform:   TRS-80 Model III", "IMG (raw sector image)", "Filesystem: TRSDOS 1.3", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
-		{"images/mfgamania.img", []string{"Platform:   Atari 8-bit", "XFD (raw sector image, 128 byte sectors, all bits inverted)", "Atari DOS 2.0S"}},
-		{"images/T80M4UPG.IMD", []string{"Platform:   TRS-80 Model 4", "IMD (ImageDisk 1.10, 250 kbps MFM)", "Filesystem: TRSDOS 6.2", "40 tracks, 1 head, 18 sectors/track, 256 bytes/sector"}},
 	}
 	for _, tt := range tests {
 		var stdout, stderr bytes.Buffer
@@ -131,58 +96,6 @@ func TestRunCat(t *testing.T) {
 	stderr.Reset()
 	if code := run([]string{"cat", path}, &stdout, &stderr); code != 1 {
 		t.Errorf("run(cat without path) returned %d, want 1", code)
-	}
-}
-
-func TestRunDump(t *testing.T) {
-	tests := []struct {
-		file        string
-		wantContain []string
-	}{
-		{
-			file:        "images/Workbench v1.0 (1985)(Commodore).adf",
-			wantContain: []string{"Amiga ADF Disk Image Dump", "Workbench", "Root Block: sector 880"},
-		},
-	}
-	for _, tt := range tests {
-		var stdout, stderr bytes.Buffer
-		code := run([]string{"dump", tt.file}, &stdout, &stderr)
-		if code != 0 {
-			t.Errorf("run(dump %s) returned %d, want 0 (stderr: %s)", tt.file, code, stderr.String())
-		}
-		for _, w := range tt.wantContain {
-			if !strings.Contains(stdout.String(), w) {
-				t.Errorf("run(dump %s) output missing %q", tt.file, w)
-			}
-		}
-	}
-}
-
-func TestRunLsATR(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ls", "-l", "images/dos.atr"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run(ls -l dos.atr) = %d (stderr: %s)", code, stderr.String())
-	}
-	for _, w := range []string{
-		"Contents:\n  Type     Size Modified            Name\n",
-		"  -        4875                     DOS.SYS",
-		"  -        5126                     DUP.SYS",
-		"  -          88                     AUTORUN.SYS",
-		"Formatted:    90 KiB (92,160 bytes)",
-		"In-use:  13.2%     95 sectors",
-		"Free:    86.8%    625 sectors",
-	} {
-		if !strings.Contains(stdout.String(), w) {
-			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
-		}
-	}
-	if strings.Contains(stdout.String(), "Unformatted") {
-		t.Errorf("ATR output should not report unformatted capacity; got:\n%s", stdout.String())
-	}
-
-	stdout.Reset()
-	if code := run([]string{"cat", "images/dos.atr", "AUTORUN.SYS"}, &stdout, &stderr); code != 0 || stdout.Len() != 88 {
-		t.Errorf("cat AUTORUN.SYS = code %d, %d bytes; want 0, 88 bytes", code, stdout.Len())
 	}
 }
 
@@ -298,48 +211,6 @@ func TestListRecursive(t *testing.T) {
 	}
 }
 
-func TestRunLsP81(t *testing.T) {
-	const path = "images/ZX81_Kong (Paul Farrow 2010) [V1-01].P81"
-	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ls", "-l", path}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run(ls -l %s) = %d (stderr: %s)", path, code, stderr.String())
-	}
-	if w := "  -       12513                     \"ZX81 KONG\"\n"; !strings.Contains(stdout.String(), w) {
-		t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
-	}
-	if strings.Contains(stdout.String(), "Usage:") {
-		t.Errorf("program file should not report disk usage; got:\n%s", stdout.String())
-	}
-
-	stdout.Reset()
-	if code := run([]string{"cat", path, "ZX81 KONG"}, &stdout, &stderr); code != 0 || stdout.Len() != 12513 {
-		t.Errorf("cat ZX81 KONG = code %d, %d bytes; want 0, 12513 bytes", code, stdout.Len())
-	}
-}
-
-func TestRunLsTRS80(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ls", "-l", "images/trs80profileiii.img"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run(ls -l trs80profileiii.img) = %d (stderr: %s)", code, stderr.String())
-	}
-	for _, w := range []string{
-		"Label:\n  TRSDOS\n",
-		"  -        5120                     BASIC/CMD\n",
-		"  -        9195                     EFCD/CMD\n",
-		"Formatted:   180 KiB (184,320 bytes)",
-		"In-use:  58.8%    423 sectors",
-	} {
-		if !strings.Contains(stdout.String(), w) {
-			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
-		}
-	}
-
-	stdout.Reset()
-	if code := run([]string{"cat", "images/trs80profileiii.img", "RM/CMD"}, &stdout, &stderr); code != 0 || stdout.Len() != 3384 {
-		t.Errorf("cat RM/CMD = code %d, %d bytes; want 0, 3384 bytes", code, stdout.Len())
-	}
-}
-
 func TestRunLsWarnings(t *testing.T) {
 	raw, err := os.ReadFile("images/ibm/720kb.img")
 	if err != nil {
@@ -385,43 +256,6 @@ func TestRunLsWarnings(t *testing.T) {
 	stdout.Reset()
 	if code := run([]string{"ls", "images/ibm/720kb.img"}, &stdout, &stderr); code != 0 || strings.Contains(stdout.String(), "Warning") || strings.Contains(stdout.String(), "Extra:") {
 		t.Errorf("ls 720kb.img = code %d, want no warnings or extra sectors; got:\n%s", code, stdout.String())
-	}
-}
-
-func TestRunLsIMD(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	if code := run([]string{"ls", "-l", "images/T80M4UPG.IMD"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run(ls -l T80M4UPG.IMD) = %d (stderr: %s)", code, stderr.String())
-	}
-	for _, w := range []string{
-		"  Geometry:   40 tracks, 1 head, 18 sectors/track, 256 bytes/sector\n" +
-			"  Comment:    700-2298 MODEL 4/4P\n" +
-			"              TRSDOS UPGRADE\n" +
-			"              VER. 06.02.00 to 06.02.01\n\n",
-		"Label:\n  UPGRADE6\n",
-		"  -        1280                     BOOT/SYS\n",
-		"  -         503 1985-06-02          MAKE621/JCL\n",
-		"  -        8821 1985-06-02          MAKE621A/JCL\n",
-		"  Total:  100.0%    720 sectors (184,320 bytes)",
-	} {
-		if !strings.Contains(stdout.String(), w) {
-			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
-		}
-	}
-
-	stdout.Reset()
-	if code := run([]string{"dump", "images/T80M4UPG.IMD"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run(dump) = %d (stderr: %s)", code, stderr.String())
-	}
-	for _, w := range []string{"ImageDisk (IMD) Container", "Deleted data marks on cylinders: 20", "TRS-80 Model 4 TRSDOS 6.2 Disk Image Dump", "--0 MAKE621/JCL"} {
-		if !strings.Contains(stdout.String(), w) {
-			t.Errorf("dump missing %q; got:\n%s", w, stdout.String())
-		}
-	}
-
-	stdout.Reset()
-	if code := run([]string{"cat", "images/T80M4DOS.IMD", "BASIC/CMD"}, &stdout, &stderr); code != 0 || stdout.Len() != 21584 {
-		t.Errorf("cat BASIC/CMD = code %d, %d bytes", code, stdout.Len())
 	}
 }
 

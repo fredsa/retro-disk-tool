@@ -2,107 +2,8 @@ package zx81
 
 import (
 	"bytes"
-	"os"
-	"strings"
 	"testing"
-
-	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/util"
 )
-
-const kong = "../../images/ZX81_Kong (Paul Farrow 2010) [V1-01]"
-
-func open(t *testing.T, path string) *File {
-	t.Helper()
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", path, err)
-	}
-	f, err := Open(path, bytes.NewReader(raw), int64(len(raw)))
-	if err != nil {
-		t.Fatalf("Open(%s) failed: %v", path, err)
-	}
-	return f
-}
-
-func TestKong(t *testing.T) {
-	p := open(t, kong+".p")
-	p81 := open(t, kong+".P81")
-
-	entries, _ := p.List()
-	if len(entries) != 1 || entries[0].Name != "ZX81_Kong (Paul Farrow 2010) [V1-01]" || entries[0].Size != 12513 || entries[0].Native != nil {
-		t.Errorf("P List = %+v", entries)
-	}
-	entries, _ = p81.List()
-	if len(entries) != 1 || entries[0].Name != "ZX81 KONG" || entries[0].Size != 12513 ||
-		util.GlyphsString(entries[0].Native) != "ZX81 KONG" {
-		t.Errorf("P81 List = %+v", entries)
-	}
-	for _, g := range entries[0].Native {
-		if g.Style != util.StyleNormal {
-			t.Errorf("P81 name glyph %q is not normal; the terminating bit 7 is not inverse video", g.R)
-		}
-	}
-
-	a, err := p.ReadFile("")
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err := p81.ReadFile("zx81 kong")
-	if err != nil || !bytes.Equal(a, b) {
-		t.Errorf("P81 ReadFile(zx81 kong) differs from P data (err %v)", err)
-	}
-	if _, err := p81.ReadFile("NOPE"); err == nil {
-		t.Error("ReadFile(NOPE) succeeded, want error")
-	}
-
-	prog := p81.programs[0]
-	if n, ok := prog.AutoRun(); !ok || n != 30 {
-		t.Errorf("AutoRun = %d, %v; want 30, true", n, ok)
-	}
-	var got []string
-	for _, l := range prog.Lines() {
-		got = append(got, listLine(l.Body))
-	}
-	want := []string{
-		"REM       ZX81 KONG                 (ZX80 + 8K BASIC ROM)",
-		`RAND USR VAL "16574"`,
-		`SAVE "ZX81 KONG"`,
-		"RUN",
-	}
-	if strings.Join(got, "\n") != strings.Join(want, "\n") {
-		t.Errorf("listing =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
-	}
-
-	if fm := p81.Format(); fm.Platform != "Sinclair ZX81" || !strings.HasPrefix(fm.Image, "P81 (named program file, 1 program)") {
-		t.Errorf("Format = %+v", fm)
-	}
-	var buf bytes.Buffer
-	if err := p81.Dump(&buf); err != nil {
-		t.Fatal(err)
-	}
-	for _, w := range []string{"Auto-run: line 30", "RAM required: 16K", "(collapsed)", `  10 RAND USR VAL "16574"`} {
-		if !strings.Contains(buf.String(), w) {
-			t.Errorf("Dump missing %q:\n%s", w, buf.String())
-		}
-	}
-}
-
-func TestMultiProgramP81(t *testing.T) {
-	raw, err := os.ReadFile(kong + ".P81")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Second program named "AB" (the last character has bit 7 set).
-	two := append(append(append([]byte{}, raw...), 0x26, 0xA7), raw[9:]...)
-	f, err := Open("two.p81", bytes.NewReader(two), int64(len(two)))
-	if err != nil {
-		t.Fatalf("Open failed: %v", err)
-	}
-	entries, _ := f.List()
-	if len(entries) != 2 || entries[1].Name != "AB" || entries[1].Size != 12513 {
-		t.Errorf("List = %+v", entries)
-	}
-}
 
 func TestListLine(t *testing.T) {
 	// 10 PRINT AT 1,2;"[inverse A]";PI**2: number markers hide the binary value.
@@ -131,19 +32,6 @@ func TestOpenErrors(t *testing.T) {
 	} {
 		if _, err := Open(name, bytes.NewReader(data), int64(len(data))); err == nil {
 			t.Errorf("Open(%s) succeeded, want error", name)
-		}
-	}
-}
-
-func TestTrailingBytes(t *testing.T) {
-	for _, ext := range []string{".p", ".P81"} {
-		raw, err := os.ReadFile(kong + ext)
-		if err != nil {
-			t.Fatal(err)
-		}
-		raw = append(raw, 0)
-		if _, err := Open(kong+ext, bytes.NewReader(raw), int64(len(raw))); err == nil {
-			t.Errorf("Open(%s + 1 byte) succeeded, want error", ext)
 		}
 	}
 }

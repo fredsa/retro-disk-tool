@@ -22,6 +22,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  rdt -v | --version")
 	fmt.Fprintln(w, "  rdt -h | --help")
 	fmt.Fprintln(w, "  rdt ls [-l] [-r] <file> [<dir>]")
+	fmt.Fprintln(w, "  rdt <file> [<dir>]                (same as rdt ls -l)")
 	fmt.Fprintln(w, "  rdt dump <file>")
 	fmt.Fprintln(w, "  rdt cat <file> <path>")
 	fmt.Fprintln(w, "  rdt terminal")
@@ -486,6 +487,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		terminal.Print(stdout, terminal.Detect(stdout))
 		return 0
 	default:
+		// A disk image without a command lists it: rdt <file> [<dir>]
+		// is the same as rdt ls -l <file> [<dir>].
+		if fi, err := os.Stat(args[0]); err == nil && !fi.IsDir() {
+			return runLs(append([]string{"-l"}, args...), stdout, stderr)
+		}
 		fmt.Fprintf(stderr, "Unknown option or command: %s\n\n", args[0])
 		printHelp(stderr)
 		return 1

@@ -220,8 +220,8 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 
 	if format.ContentsNote != "" {
 		// A disk without files (e.g. a bootable game disk) describes itself
-		// instead of listing contents.
-		fmt.Fprintln(stdout, format.ContentsNote)
+		// instead of listing files.
+		fmt.Fprintf(stdout, "Contents:\n  %s\n", format.ContentsNote)
 	} else {
 		printContents(stdout, entries, dirPath, *longFlag)
 	}

@@ -32,7 +32,7 @@ func atr(sectors []byte) []byte {
 func TestBootDisk(t *testing.T) {
 	raw := atr(bootDisk(2, 0x5000, 0x50B1))
 	d := openATR(t, raw)
-	if f := d.Format(); f.Filesystem != "none (bootable disk)" || f.Comment != "Atari boot: 2 sectors loaded at $5000, init $50B1" || f.Tracks != 40 {
+	if f := d.Format(); f.Filesystem != "none (bootable disk)" || f.ContentsNote != "Atari boot: 2 sectors loaded at $5000, init $50B1" || f.Comment != "" || f.Tracks != 40 {
 		t.Errorf("Format = %+v", f)
 	}
 	if entries, err := d.List(); err != nil || len(entries) != 0 {

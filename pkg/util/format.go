@@ -10,5 +10,8 @@ type FormatInfo struct {
 	Sectors    string // sectors per track, e.g. "16" or "17-21"
 	SectorSize int    // bytes per sector
 	Comment    string // image description stored in the file (may be multi-line)
+	// ContentsNote, if set, is shown instead of the Contents section, for
+	// disks without files (e.g. a bootable disk without a DOS).
+	ContentsNote string
 }
 

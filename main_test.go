@@ -587,10 +587,18 @@ func TestRunAtariBootDisk(t *testing.T) {
 	if code := run([]string{atr}, &stdout, &stderr); code != 0 {
 		t.Fatalf("run(game.atr) = %d (stderr: %s)", code, stderr.String())
 	}
-	for _, w := range []string{"  Filesystem: none (bootable disk)\n", "  Comment:    Atari boot: 2 sectors loaded at $5000, init $50B1\n", "  In-use: 100.0%    720 sectors"} {
+	for _, w := range []string{
+		"  Filesystem: none (bootable disk)\n",
+		// The boot header replaces the Contents section.
+		"bytes/sector\n\nAtari boot: 2 sectors loaded at $5000, init $50B1\n\nCapacity:\n",
+		"  In-use: 100.0%    720 sectors",
+	} {
 		if !strings.Contains(stdout.String(), w) {
 			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
 		}
+	}
+	if strings.Contains(stdout.String(), "Contents") || strings.Contains(stdout.String(), "Comment:") {
+		t.Errorf("bootable disk listing has a Contents section or comment:\n%s", stdout.String())
 	}
 	stderr.Reset()
 	if code := run([]string{"ls", raw}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), "unrecognized disk image") {

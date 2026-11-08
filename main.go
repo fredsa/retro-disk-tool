@@ -200,7 +200,8 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	printFormat(stdout, reader.Format())
+	format := reader.Format()
+	printFormat(stdout, format)
 
 	header := reader.Header()
 	if header != nil && (header.Name != "" || header.ID != "" || header.DOSType != "") {
@@ -217,102 +218,12 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout)
 	}
 
-	var corruptWarnings []string
-	seenWarnings := make(map[string]bool)
-
-	if dirPath == "" {
-		fmt.Fprintf(stdout, "Contents:\n")
+	if format.ContentsNote != "" {
+		// A disk without files (e.g. a bootable game disk) describes itself
+		// instead of listing contents.
+		fmt.Fprintln(stdout, format.ContentsNote)
 	} else {
-		fmt.Fprintf(stdout, "Contents of %s/:\n", formatFilename(dirPath))
-	}
-
-	// Show an extra "Native" column when any entry has a platform specific
-	// rendering of its name (e.g. Apple II inverse / flashing characters).
-	displayNames := make([]string, len(entries))
-	nameWidth := 0
-	hasNative := false
-	for i, entry := range entries {
-		n := entry.Name
-		if entry.IsDir {
-			n += "/"
-		}
-		displayNames[i] = formatFilename(n)
-		if w := utf8.RuneCountInString(displayNames[i]); w > nameWidth {
-			nameWidth = w
-		}
-		if nativeDiffers(entry) {
-			hasNative = true
-		}
-	}
-	useANSI := false
-	if *longFlag && hasNative {
-		useANSI = terminal.Detect(stdout).ANSI
-	}
-	if *longFlag {
-		if hasNative {
-			if nameWidth < len("Name") {
-				nameWidth = len("Name")
-			}
-			fmt.Fprintf(stdout, "  %-4s %8s %-19s %-*s %s\n", "Type", "Size", "Modified", nameWidth, "Name", "Native")
-		} else {
-			fmt.Fprintf(stdout, "  %-4s %8s %-19s %s\n", "Type", "Size", "Modified", "Name")
-		}
-	}
-
-	for i, entry := range entries {
-		if entry.Corrupt && entry.Error != "" {
-			// Record unique directory sector errors for the summary warning
-			for _, part := range strings.Split(entry.Error, "; ") {
-				if strings.HasPrefix(part, "track ") && !seenWarnings[part] {
-					seenWarnings[part] = true
-					corruptWarnings = append(corruptWarnings, part)
-				}
-			}
-		}
-		if *longFlag {
-			typeIndicator := "-"
-			if entry.Corrupt {
-				typeIndicator = "?"
-			} else if entry.IsDir {
-				typeIndicator = "d"
-			}
-			displayName := displayNames[i]
-			timeStr := "                   "
-			if entry.ModTime != nil {
-				timeStr = entry.ModTime.Format("2006-01-02 15:04:05")
-				if entry.DateOnly {
-					timeStr = entry.ModTime.Format("2006-01-02         ")
-				}
-			}
-			if hasNative {
-				pad := strings.Repeat(" ", nameWidth-utf8.RuneCountInString(displayName))
-				native := terminal.Render(entry.Native, useANSI)
-				if len(entry.Native) == 0 {
-					native = entry.Name
-				}
-				fmt.Fprintf(stdout, "  %-4s %8d %s %s%s %s\n", typeIndicator, entry.Size, timeStr, displayName, pad, native)
-			} else {
-				fmt.Fprintf(stdout, "  %-4s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
-			}
-		} else {
-			fmt.Fprintf(stdout, "  %s\n", formatFilename(entry.Name))
-		}
-	}
-
-	hasCorrupt := false
-	for _, entry := range entries {
-		if entry.Corrupt {
-			hasCorrupt = true
-			break
-		}
-	}
-	if *longFlag && hasCorrupt {
-		fmt.Fprintln(stdout)
-		if len(corruptWarnings) > 0 {
-			fmt.Fprintf(stdout, "Warning: broken directory on disk (%s)\n", strings.Join(corruptWarnings, "; "))
-		} else {
-			fmt.Fprintf(stdout, "Warning: broken directory on disk (corrupted directory entries)\n")
-		}
+		printContents(stdout, entries, dirPath, *longFlag)
 	}
 
 	if wr, ok := reader.(disk.Warner); ok {
@@ -370,6 +281,108 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 	}
 
 	return 0
+}
+
+// printContents prints the Contents section: the file listing, and a warning
+// for corrupt entries.
+func printContents(stdout io.Writer, entries []disk.Entry, dirPath string, long bool) {
+	var corruptWarnings []string
+	seenWarnings := make(map[string]bool)
+
+	if dirPath == "" {
+		fmt.Fprintf(stdout, "Contents:\n")
+	} else {
+		fmt.Fprintf(stdout, "Contents of %s/:\n", formatFilename(dirPath))
+	}
+
+	// Show an extra "Native" column when any entry has a platform specific
+	// rendering of its name (e.g. Apple II inverse / flashing characters).
+	displayNames := make([]string, len(entries))
+	nameWidth := 0
+	hasNative := false
+	for i, entry := range entries {
+		n := entry.Name
+		if entry.IsDir {
+			n += "/"
+		}
+		displayNames[i] = formatFilename(n)
+		if w := utf8.RuneCountInString(displayNames[i]); w > nameWidth {
+			nameWidth = w
+		}
+		if nativeDiffers(entry) {
+			hasNative = true
+		}
+	}
+	useANSI := false
+	if long && hasNative {
+		useANSI = terminal.Detect(stdout).ANSI
+	}
+	if long {
+		if hasNative {
+			if nameWidth < len("Name") {
+				nameWidth = len("Name")
+			}
+			fmt.Fprintf(stdout, "  %-4s %8s %-19s %-*s %s\n", "Type", "Size", "Modified", nameWidth, "Name", "Native")
+		} else {
+			fmt.Fprintf(stdout, "  %-4s %8s %-19s %s\n", "Type", "Size", "Modified", "Name")
+		}
+	}
+
+	for i, entry := range entries {
+		if entry.Corrupt && entry.Error != "" {
+			// Record unique directory sector errors for the summary warning
+			for _, part := range strings.Split(entry.Error, "; ") {
+				if strings.HasPrefix(part, "track ") && !seenWarnings[part] {
+					seenWarnings[part] = true
+					corruptWarnings = append(corruptWarnings, part)
+				}
+			}
+		}
+		if long {
+			typeIndicator := "-"
+			if entry.Corrupt {
+				typeIndicator = "?"
+			} else if entry.IsDir {
+				typeIndicator = "d"
+			}
+			displayName := displayNames[i]
+			timeStr := "                   "
+			if entry.ModTime != nil {
+				timeStr = entry.ModTime.Format("2006-01-02 15:04:05")
+				if entry.DateOnly {
+					timeStr = entry.ModTime.Format("2006-01-02         ")
+				}
+			}
+			if hasNative {
+				pad := strings.Repeat(" ", nameWidth-utf8.RuneCountInString(displayName))
+				native := terminal.Render(entry.Native, useANSI)
+				if len(entry.Native) == 0 {
+					native = entry.Name
+				}
+				fmt.Fprintf(stdout, "  %-4s %8d %s %s%s %s\n", typeIndicator, entry.Size, timeStr, displayName, pad, native)
+			} else {
+				fmt.Fprintf(stdout, "  %-4s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
+			}
+		} else {
+			fmt.Fprintf(stdout, "  %s\n", formatFilename(entry.Name))
+		}
+	}
+
+	hasCorrupt := false
+	for _, entry := range entries {
+		if entry.Corrupt {
+			hasCorrupt = true
+			break
+		}
+	}
+	if long && hasCorrupt {
+		fmt.Fprintln(stdout)
+		if len(corruptWarnings) > 0 {
+			fmt.Fprintf(stdout, "Warning: broken directory on disk (%s)\n", strings.Join(corruptWarnings, "; "))
+		} else {
+			fmt.Fprintf(stdout, "Warning: broken directory on disk (corrupted directory entries)\n")
+		}
+	}
 }
 
 func runDump(args []string, stdout, stderr io.Writer) int {

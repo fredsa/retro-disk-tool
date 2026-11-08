@@ -51,9 +51,9 @@ type Disk struct {
 	data       []byte // sector data (ATR header removed)
 	secSize    int
 	numSectors int
-	raw        bool // headerless XFD image
-	inverted   bool // all bits were inverted in the image
-	dos3       bool // Atari DOS 3 filesystem (see dos3.go)
+	raw        bool   // headerless XFD image
+	inverted   bool   // all bits were inverted in the image
+	dos3       bool   // Atari DOS 3 filesystem (see dos3.go)
 	bootOnly   bool   // bootable disk without a DOS filesystem (see boot.go)
 	notDOS     string // why a boot-only disk is not DOS 2.x or DOS 3
 }
@@ -367,10 +367,10 @@ func (d *Disk) FormattedDesc() string {
 func (d *Disk) Format() *util.FormatInfo {
 	fsName := "Atari DOS 2.0S"
 	sectors := "18"
-	comment := ""
+	note := ""
 	switch {
 	case d.bootOnly:
-		fsName, comment = "none (bootable disk)", "Atari "+d.bootHeader().String()
+		fsName, note = "none (bootable disk)", "Atari "+d.bootHeader().String()
 		if d.isEnhanced() {
 			sectors = "26"
 		}
@@ -384,14 +384,14 @@ func (d *Disk) Format() *util.FormatInfo {
 		fsName = "Atari DOS 2.0D"
 	}
 	return &util.FormatInfo{
-		Platform:   "Atari 8-bit",
-		Image:      d.imageDesc(),
-		Filesystem: fsName,
-		Tracks:     40,
-		Heads:      1,
-		Sectors:    sectors,
-		SectorSize: d.secSize,
-		Comment:    comment,
+		Platform:     "Atari 8-bit",
+		Image:        d.imageDesc(),
+		Filesystem:   fsName,
+		Tracks:       40,
+		Heads:        1,
+		Sectors:      sectors,
+		SectorSize:   d.secSize,
+		ContentsNote: note,
 	}
 }
 
@@ -446,4 +446,3 @@ func (d *Disk) Dump(w io.Writer) error {
 	}
 	return nil
 }
-

@@ -99,6 +99,9 @@ func OpenT64(r io.ReaderAt, size int64) (*T64File, error) {
 			end = t.files[order[k+1]].offset
 		}
 		if end <= t.files[i].offset {
+			if k+1 == len(order) {
+				return nil, fmt.Errorf("T64 entry %q has no data (offset %d, file size %d)", t.files[i].name, t.files[i].offset, len(data))
+			}
 			return nil, fmt.Errorf("T64 entries %q and %q overlap", t.files[i].name, t.files[order[k+1]].name)
 		}
 		t.files[i].length = end - t.files[i].offset

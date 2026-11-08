@@ -301,9 +301,13 @@ func (fs *FileSystem) DiskUsage() (*DiskUsage, error) {
 	managed := fs.sectors - 2
 	checked := 0
 	for i := 0; i < 25 && checked < managed; i++ {
-		bmBlock := fs.block(u32(root, 316+i*4))
-		if bmBlock == nil {
+		bmPtr := u32(root, 316+i*4)
+		if bmPtr == 0 {
 			continue
+		}
+		bmBlock := fs.block(bmPtr)
+		if bmBlock == nil {
+			return nil, fmt.Errorf("bitmap block %d out of range", bmPtr)
 		}
 		// Long 0 is checksum. Longs 1 through 127 are bitmap data words.
 		for off := 4; off < SectorSize && checked < managed; off += 4 {

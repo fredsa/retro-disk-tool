@@ -124,7 +124,7 @@ func Parse(r io.ReaderAt, size int64) (*Image, error) {
 			switch {
 			case rec == recUnavailable:
 				s.Unavailable = true
-				s.Data = bytes.Repeat(util.BadSectorMarker, (secSize+len(util.BadSectorMarker)-1)/len(util.BadSectorMarker))[:secSize]
+				s.Data = util.BadSectorFill(secSize)
 			case rec <= 8:
 				s.Compressed = rec%2 == 0
 				s.Deleted = rec == 3 || rec == 4 || rec == 7 || rec == 8

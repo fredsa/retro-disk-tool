@@ -3,6 +3,7 @@ package c64
 import (
 	"bytes"
 	"encoding/binary"
+	"strings"
 	"testing"
 )
 
@@ -31,5 +32,31 @@ func TestCRTSize(t *testing.T) {
 		if _, err := OpenCRT("x.crt", bytes.NewReader(data), int64(len(data))); err == nil {
 			t.Errorf("OpenCRT(%s) succeeded, want error", name)
 		}
+	}
+}
+
+// Malformed archives must return errors, not panic.
+func TestMalformedArchives(t *testing.T) {
+	// A T64 whose only entry points at the end of the file (no data).
+	t64 := make([]byte, 64+32)
+	copy(t64, "C64 tape image file")
+	binary.LittleEndian.PutUint16(t64[32:], 0x0100)
+	binary.LittleEndian.PutUint16(t64[34:], 1)
+	t64[64] = 1
+	binary.LittleEndian.PutUint32(t64[64+8:], uint32(len(t64)))
+	if _, err := OpenT64(bytes.NewReader(t64), int64(len(t64))); err == nil || !strings.Contains(err.Error(), "has no data") {
+		t.Errorf("OpenT64(entry without data) error = %v", err)
+	}
+
+	// A TCRT with a TapcrtFileSys marker but a flash too small for its
+	// directory.
+	tcrt := make([]byte, 216+64)
+	copy(tcrt, "tapecartImage\r\n\x1a")
+	tcrt[16] = 1
+	binary.LittleEndian.PutUint32(tcrt[212:], 64)
+	copy(tcrt[216+2:], "TapcrtFileSys")
+	tcrt[216+15+16] = 0xF0 // entry 0 is a separator; entry 1 runs past the flash
+	if _, err := OpenTCRT(bytes.NewReader(tcrt), int64(len(tcrt))); err == nil || !strings.Contains(err.Error(), "extends beyond") {
+		t.Errorf("OpenTCRT(truncated directory) error = %v", err)
 	}
 }

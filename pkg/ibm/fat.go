@@ -415,7 +415,7 @@ func dosTime(date, tm uint16) *time.Time {
 }
 
 // readDir parses the directory at cluster (0 for root), returning its entries
-// and the volume label (if any).
+// and the volume label (if any). File chains are not checked (see listDir).
 func (d *Disk) readDir(cluster uint32) ([]Entry, string, error) {
 	data, err := d.dirData(cluster)
 	var entries []Entry
@@ -490,22 +490,36 @@ func (d *Disk) readDir(cluster uint32) ([]Entry, string, error) {
 		}
 		if !ent.IsDir {
 			ent.Size = binary.LittleEndian.Uint32(e[28:])
-			if ent.Size > 0 {
-				clusters, cerr := d.chain(start)
-				if cerr != nil {
-					ent.Corrupt, ent.Error = true, cerr.Error()
-				} else if need := (int(ent.Size) + d.clusterSize() - 1) / d.clusterSize(); len(clusters) < need {
-					ent.Corrupt = true
-					ent.Error = fmt.Sprintf("cluster chain too short: %d clusters, need %d", len(clusters), need)
-				} else if n := d.badSectorsIn(clusters[:need]); n > 0 {
-					ent.Corrupt = true
-					ent.Error = fmt.Sprintf("%d unreadable sectors", n)
-				}
-			}
 		}
 		entries = append(entries, ent)
 	}
 	return entries, label, err
+}
+
+// listDir reads a directory and checks each file's cluster chain (length
+// and unreadable sectors), marking damaged files as corrupt.
+func (d *Disk) listDir(cluster uint32) ([]Entry, error) {
+	entries, _, err := d.readDir(cluster)
+	for i := range entries {
+		d.checkChain(&entries[i])
+	}
+	return entries, err
+}
+
+func (d *Disk) checkChain(e *Entry) {
+	if e.IsDir || e.Size == 0 {
+		return
+	}
+	clusters, err := d.chain(e.Cluster)
+	if err != nil {
+		e.Corrupt, e.Error = true, err.Error()
+	} else if need := (int(e.Size) + d.clusterSize() - 1) / d.clusterSize(); len(clusters) < need {
+		e.Corrupt = true
+		e.Error = fmt.Sprintf("cluster chain too short: %d clusters, need %d", len(clusters), need)
+	} else if n := d.badSectorsIn(clusters[:need]); n > 0 {
+		e.Corrupt = true
+		e.Error = fmt.Sprintf("%d unreadable sectors", n)
+	}
 }
 
 // badSectorsIn counts the unreadable sectors in clusters.
@@ -568,10 +582,7 @@ func (d *Disk) Warnings() []string {
 }
 
 // List returns the root directory entries.
-func (d *Disk) List() ([]Entry, error) {
-	entries, _, err := d.readDir(0)
-	return entries, err
-}
+func (d *Disk) List() ([]Entry, error) { return d.listDir(0) }
 
 // ListDir returns the entries of the directory at path ("" or "/" for root).
 func (d *Disk) ListDir(path string) ([]Entry, error) {
@@ -585,8 +596,7 @@ func (d *Disk) ListDir(path string) ([]Entry, error) {
 	if !e.IsDir {
 		return nil, fmt.Errorf("%q is not a directory", path)
 	}
-	entries, _, err := d.readDir(e.Cluster)
-	return entries, err
+	return d.listDir(e.Cluster)
 }
 
 // find resolves a "/" or "\" separated path to a directory entry.
@@ -634,6 +644,8 @@ func (d *Disk) ReadFile(path string) ([]byte, error) {
 	data, err := d.readChain(e.Cluster)
 	if int(e.Size) <= len(data) {
 		data = data[:e.Size]
+	} else if err == nil {
+		err = fmt.Errorf("%q: cluster chain holds %d bytes, directory says %d", path, len(data), e.Size)
 	}
 	return data, err
 }
@@ -750,7 +762,7 @@ func attrString(a byte) string {
 }
 
 func (d *Disk) dumpDir(w io.Writer, cluster uint32, prefix string, depth int) {
-	entries, _, err := d.readDir(cluster)
+	entries, err := d.listDir(cluster)
 	if err != nil {
 		fmt.Fprintf(w, "    %s[ERROR: %v]\n", prefix, err)
 	}

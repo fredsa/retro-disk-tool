@@ -126,7 +126,7 @@ func OpenG64(r io.ReaderAt, size int64) (*CBMDisk, error) {
 	l := d64Layout(maxTrack)
 	data := make([]byte, 0, l.totalSectors()*256)
 	errs := make([]byte, 0, l.totalSectors())
-	bad := bytes.Repeat(util.BadSectorMarker, 256/len(util.BadSectorMarker))
+	bad := util.BadSectorFill(256)
 	for t := 1; t <= maxTrack; t++ {
 		for s := 0; s < d64SPT(t); s++ {
 			d, ok := decoded[t][s]
@@ -209,10 +209,10 @@ func decodeGCRTrack(track []byte, trackNum int) map[int]gcrSector {
 			continue // already have a good copy
 		}
 		if hdr[1] != hdr[2]^hdr[3]^hdr[4]^hdr[5] {
-			out[s] = gcrSector{data: bytes.Repeat(util.BadSectorMarker, 16), code: 0x09}
+			out[s] = gcrSector{data: util.BadSectorFill(256), code: 0x09}
 			continue
 		}
-		sector := gcrSector{data: bytes.Repeat(util.BadSectorMarker, 16), code: 0x04}
+		sector := gcrSector{data: util.BadSectorFill(256), code: 0x04}
 		if k+1 < len(starts) {
 			if blk, ok := decode(starts[k+1], 258); ok && blk[0] == 0x07 {
 				var sum byte

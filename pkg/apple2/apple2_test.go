@@ -1,6 +1,7 @@
 package apple2_test
 
 import (
+	"bytes"
 	"os"
 	"strings"
 	"testing"
@@ -275,5 +276,73 @@ func TestUnsupportedFilesystems(t *testing.T) {
 		if _, err := openImage(t, tc.name); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("open %s: error %v, want %q", tc.name, err, tc.want)
 		}
+	}
+}
+
+// TestProDOSSubdirectories uses a ProDOS disk with nested directories.
+func TestProDOSSubdirectories(t *testing.T) {
+	path := testimages.Path(t, "appleii", "prodosdirs.dsk")
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	fi, _ := f.Stat()
+	img, err := apple2.Open(path, f, fi.Size())
+	if err != nil {
+		t.Fatalf("apple2.Open failed: %v", err)
+	}
+	if hdr := img.Header(); hdr == nil || hdr.Name != "/PRODOSDIRS" {
+		t.Errorf("Header() = %+v", hdr)
+	}
+	names := func(entries []apple2.DiskEntry) string {
+		var n []string
+		for _, e := range entries {
+			if e.IsDir {
+				n = append(n, e.Name+"/")
+			} else {
+				n = append(n, e.Name)
+			}
+		}
+		return strings.Join(n, " ")
+	}
+	for dir, want := range map[string]string{"": "HELLOWORLD DIR1/ DIR2/", "DIR1": "HELLOAGAIN", "/dir1/": "HELLOAGAIN", "DIR2": ""} {
+		entries, err := img.ListDir(dir)
+		if err != nil || names(entries) != want {
+			t.Errorf("ListDir(%q) = %q, %v; want %q", dir, names(entries), err, want)
+		}
+	}
+	for _, dir := range []string{"HELLOWORLD", "NOPE", "DIR1/NOPE"} {
+		if _, err := img.ListDir(dir); err == nil {
+			t.Errorf("ListDir(%q) succeeded, want error", dir)
+		}
+	}
+	// HELLOAGAIN is an Applesoft program: 10 PRINT "Hello again".
+	c, err := img.ReadFile("dir1/helloagain")
+	if err != nil || len(c) != 21 || !strings.Contains(string(c), `"Hello again"`) {
+		t.Errorf("ReadFile(dir1/helloagain) = %q, %v", c, err)
+	}
+	// The stored year is 20 (2020): the disk was written on 2026-11-07, but
+	// ProDOS clock drivers that derive the year from the weekday (7 November
+	// is a Saturday in both years) can only pick years from a short table.
+	entries, _ := img.List()
+	if mt := entries[0].ModTime; mt == nil || mt.Format("2006-01-02 15:04") != "2020-11-07 17:47" {
+		t.Errorf("HELLOWORLD ModTime = %v", mt)
+	}
+	if u, err := img.Usage(); err != nil || u.TotalSectors != 560 || u.InUseSectors != 22 {
+		t.Errorf("Usage = %+v, %v", u, err)
+	}
+	var dump bytes.Buffer
+	if err := img.Dump(&dump); err != nil || !strings.Contains(dump.String(), "DIR1/HELLOAGAIN  BAS    1 blocks (21 bytes)") {
+		t.Errorf("Dump:\n%s", dump.String())
+	}
+
+	// Apple DOS has no subdirectories.
+	dos, err := openImage(t, "Apple DOS 3.3 August 1980.dsk")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dos.ListDir("X"); err == nil {
+		t.Error("DOS 3.3 ListDir(X) succeeded, want error")
 	}
 }

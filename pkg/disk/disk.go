@@ -434,8 +434,10 @@ func (a *apple2Adapter) Header() *DiskHeader {
 	}
 }
 
-func (a *apple2Adapter) List() ([]Entry, error) {
-	entries, err := a.img.List()
+func (a *apple2Adapter) List() ([]Entry, error) { return a.ListDir("") }
+
+func (a *apple2Adapter) ListDir(path string) ([]Entry, error) {
+	entries, err := a.img.ListDir(path)
 	if err != nil {
 		return nil, err
 	}

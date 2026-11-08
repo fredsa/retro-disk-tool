@@ -50,6 +50,14 @@ func (d *DOSDisk) Header() *DiskHeaderInfo {
 	}
 }
 
+// ListDir lists the catalog; Apple DOS has no subdirectories.
+func (d *DOSDisk) ListDir(path string) ([]DiskEntry, error) {
+	if strings.Trim(path, "/") != "" {
+		return nil, fmt.Errorf("subdirectories are not supported for this disk format")
+	}
+	return d.List()
+}
+
 func (d *DOSDisk) List() ([]DiskEntry, error) {
 	vtoc, err := d.readSector(17, 0)
 	if err != nil {

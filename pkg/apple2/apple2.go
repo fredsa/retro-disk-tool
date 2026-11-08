@@ -47,6 +47,7 @@ type DiskEntry struct {
 	FileType string
 	Blocks   int
 	Locked   bool
+	key      int // ProDOS key block (a subdirectory's first directory block)
 }
 
 type DiskUsageInfo struct {
@@ -69,6 +70,8 @@ type DiskUsageInfo struct {
 type Image interface {
 	Header() *DiskHeaderInfo
 	List() ([]DiskEntry, error)
+	// ListDir returns the entries of the directory at path ("" for the root).
+	ListDir(path string) ([]DiskEntry, error)
 	Usage() (*DiskUsageInfo, error)
 	ReadFile(path string) ([]byte, error)
 	Dump(w io.Writer) error

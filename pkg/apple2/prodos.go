@@ -92,6 +92,57 @@ func (p *ProDOSDisk) List() ([]DiskEntry, error) {
 	return p.readDirBlocks(2)
 }
 
+// ListDir returns the entries of the directory at path ("" for the volume
+// directory). ProDOS names are case-insensitive.
+func (p *ProDOSDisk) ListDir(path string) ([]DiskEntry, error) {
+	block := 2
+	parts := strings.FieldsFunc(path, func(r rune) bool { return r == '/' })
+	for i, part := range parts {
+		entries, err := p.readDirBlocks(block)
+		if err != nil {
+			return nil, err
+		}
+		var found *DiskEntry
+		for j := range entries {
+			if strings.EqualFold(entries[j].Name, part) {
+				found = &entries[j]
+				break
+			}
+		}
+		if found == nil {
+			return nil, fmt.Errorf("%q not found", strings.Join(parts[:i+1], "/"))
+		}
+		if !found.IsDir {
+			return nil, fmt.Errorf("%q is not a directory", strings.Join(parts[:i+1], "/"))
+		}
+		block = found.key
+	}
+	return p.readDirBlocks(block)
+}
+
+// dumpDir writes a directory's entries, then its subdirectories' entries.
+func (p *ProDOSDisk) dumpDir(w io.Writer, block int, prefix string, depth int) {
+	entries, err := p.readDirBlocks(block)
+	if err != nil {
+		fmt.Fprintf(w, "    [ERROR: %v]\n", err)
+		return
+	}
+	for _, e := range entries {
+		lockStr := " "
+		if e.Locked {
+			lockStr = "*"
+		}
+		name := prefix + e.Name
+		if e.IsDir {
+			name += "/"
+		}
+		fmt.Fprintf(w, "   %s%-16s %-3s %4d blocks (%d bytes)\n", lockStr, name, e.FileType, e.Blocks, e.Size)
+		if e.IsDir && depth < 16 {
+			p.dumpDir(w, e.key, name, depth+1)
+		}
+	}
+}
+
 func (p *ProDOSDisk) readDirBlocks(startBlock int) ([]DiskEntry, error) {
 	var entries []DiskEntry
 	curBlock := startBlock
@@ -169,6 +220,7 @@ func (p *ProDOSDisk) readDirBlocks(startBlock int) ([]DiskEntry, error) {
 				FileType: typeStr,
 				Blocks:   blocksUsed,
 				Locked:   (access & 0x02) == 0, // Write-disabled
+				key:      int(binary.LittleEndian.Uint16(entry[0x11:0x13])),
 			})
 		}
 
@@ -437,14 +489,7 @@ func (p *ProDOSDisk) Dump(w io.Writer) error {
 	entries, err := p.List()
 	if err == nil {
 		fmt.Fprintf(w, "  Directory Entries (%d):\n", len(entries))
-		for _, e := range entries {
-			lockStr := " "
-			if e.Locked {
-				lockStr = "*"
-			}
-			fmt.Fprintf(w, "   %s%-16s %-3s %4d blocks (%d bytes)\n",
-				lockStr, e.Name, e.FileType, e.Blocks, e.Size)
-		}
+		p.dumpDir(w, 2, "", 0)
 	}
 	return nil
 }

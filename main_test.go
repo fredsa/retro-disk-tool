@@ -605,3 +605,23 @@ func TestRunAtariBootDisk(t *testing.T) {
 		t.Errorf("ls game.img = code %d, stderr %q; want unrecognized", code, stderr.String())
 	}
 }
+
+func TestRunProDOSSubdirectories(t *testing.T) {
+	const path = "images/appleii/prodosdirs.dsk"
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{path}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(%s) = %d (stderr: %s)", path, code, stderr.String())
+	}
+	want := "Contents:\n  Type     Size Modified            Name\n" +
+		"  -          28 2020-11-07 17:47:00 HELLOWORLD\n" +
+		"  d           0 2020-11-07 17:50:00 DIR1/\n" +
+		"  -          21 2020-11-07 17:50:00 DIR1/HELLOAGAIN\n" +
+		"  d           0 2020-11-07 17:50:00 DIR2/\n"
+	if !strings.Contains(stdout.String(), want) {
+		t.Errorf("stdout missing %q; got:\n%s", want, stdout.String())
+	}
+	stdout.Reset()
+	if code := run([]string{"cat", path, "DIR1/HELLOAGAIN"}, &stdout, &stderr); code != 0 || stdout.Len() != 21 {
+		t.Errorf("cat DIR1/HELLOAGAIN = code %d, %d bytes", code, stdout.Len())
+	}
+}

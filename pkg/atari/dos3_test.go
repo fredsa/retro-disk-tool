@@ -70,7 +70,7 @@ func TestDOS3(t *testing.T) {
 		t.Errorf("Usage = %+v, %v", u, err)
 	}
 	var dump bytes.Buffer
-	if err := d.Dump(&dump); err != nil || !strings.Contains(dump.String(), "Blocks: 87 of 8 sectors (2 used, 85 free, 0 bad)") ||
+	if err := d.Dump(&dump); err != nil || !strings.Contains(dump.String(), "Blocks: 87 blocks of 8 sectors (2 used, 85 free, 0 bad)") ||
 		!strings.Contains(dump.String(), "HELLO.XEX      1 blocks from block  1 (51 bytes)") {
 		t.Errorf("Dump:\n%s", dump.String())
 	}
@@ -137,8 +137,45 @@ func TestDOS3BlockChains(t *testing.T) {
 		d := openATR(t, dos3Edit(t, tc.edit))
 		var dump bytes.Buffer
 		d.Dump(&dump)
-		if f := d.Format().Filesystem; f != "none (bootable disk)" || !strings.Contains(dump.String(), "not DOS 3 ("+tc.why+")") {
+		if f := d.Format().Filesystem; f != "unrecognized DOS (bootable disk)" || !strings.Contains(dump.String(), "not DOS 3 ("+tc.why+")") {
 			t.Errorf("%s: filesystem %q, dump:\n%s", name, f, dump.String())
 		}
+	}
+}
+
+func TestDOS3Detection(t *testing.T) {
+	// File data in sector 360 that starts with the DOS 2.x VTOC code (and
+	// even a plausible count) does not make a DOS 3 disk DOS 2.x.
+	raw := dos3Edit(t, func(_, _ []byte, sector func(int) []byte) {
+		copy(sector(360), []byte{0x02, 0xC3, 0x02, 0x10, 0x00})
+	})
+	if f := openATR(t, raw).Format().Filesystem; f != "Atari DOS 3" {
+		t.Errorf("filesystem = %q, want Atari DOS 3", f)
+	}
+}
+
+func TestDOS3Lengths(t *testing.T) {
+	// An empty file may still own a block.
+	raw := dos3Edit(t, func(entry, _ []byte, _ func(int) []byte) { binary.LittleEndian.PutUint16(entry[14:], 0) })
+	if c, err := openATR(t, raw).ReadFile("HELLO.XEX"); err != nil || len(c) != 0 {
+		t.Errorf("empty file: %d bytes, %v", len(c), err)
+	}
+
+	// A file over 64 KiB keeps only the low 16 bits of its length: 66
+	// blocks (1-66) holding 65*1024+100 = 66660 bytes store 66660-65536.
+	raw = dos3Edit(t, func(entry, fat []byte, _ func(int) []byte) {
+		entry[12] = 66
+		binary.LittleEndian.PutUint16(entry[14:], 66660-0x10000)
+		for b := 1; b < 66; b++ {
+			fat[b] = byte(b + 1)
+		}
+		fat[66] = 0xFD
+	})
+	d := openATR(t, raw)
+	if c, err := d.ReadFile("HELLO.XEX"); err != nil || len(c) != 66660 || c[0] != 0xFF {
+		t.Errorf("66 block file: %d bytes, %v; want 66660", len(c), err)
+	}
+	if u, _ := d.Usage(); u.FreeSectors != (87-67)*8 {
+		t.Errorf("free sectors = %d", u.FreeSectors)
 	}
 }

@@ -6,9 +6,9 @@ import (
 	"io"
 )
 
-// A bootable disk without a DOS filesystem (typical of commercial games):
-// the boot sectors hold a loader that reads the rest of the disk by sector
-// number, so there are no files to list.
+// A bootable disk without a recognized DOS filesystem: typically a game
+// whose boot sectors hold a loader that reads the rest of the disk by sector
+// number, but possibly another DOS (e.g. SpartaDOS), so no files are listed.
 
 // bootHeader is the header of sector 1, used by the OS to boot any disk.
 type bootHeader struct {
@@ -65,6 +65,6 @@ func (d *Disk) usedSectors() int {
 func (d *Disk) bootDump(w io.Writer) {
 	h := d.bootHeader()
 	fmt.Fprintf(w, "  Boot header: flags $%02X, %d boot sectors, load address $%04X, init address $%04X\n", h.flags, h.sectors, h.load, h.init)
-	fmt.Fprintf(w, "  No DOS filesystem: the boot loader reads the disk by sector number (%s)\n", d.notDOS)
+	fmt.Fprintf(w, "  No DOS 2.x or DOS 3 filesystem (%s): the boot loader reads the disk itself, by sector number or through another DOS\n", d.notDOS)
 	fmt.Fprintf(w, "  Sectors with data: %d of %d\n", d.usedSectors(), d.numSectors)
 }

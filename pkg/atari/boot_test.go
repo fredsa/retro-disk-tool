@@ -32,7 +32,7 @@ func atr(sectors []byte) []byte {
 func TestBootDisk(t *testing.T) {
 	raw := atr(bootDisk(2, 0x5000, 0x50B1))
 	d := openATR(t, raw)
-	if f := d.Format(); f.Filesystem != "none (bootable disk)" || f.ContentsNote != "Atari boot: 2 sectors loaded at $5000, init $50B1" || f.Comment != "" || f.Tracks != 40 {
+	if f := d.Format(); f.Filesystem != "unrecognized DOS (bootable disk)" || f.ContentsNote != "Atari boot: 2 sectors loaded at $5000, init $50B1" || f.Comment != "" || f.Tracks != 40 {
 		t.Errorf("Format = %+v", f)
 	}
 	if entries, err := d.List(); err != nil || len(entries) != 0 {
@@ -58,6 +58,14 @@ func TestBootDisk(t *testing.T) {
 	}
 	if _, err := atari.OpenXFDDOS(bytes.NewReader(sectors), int64(len(sectors))); err == nil {
 		t.Error("OpenXFDDOS(boot disk) succeeded, want error")
+	}
+
+	// A DOS 2.x VTOC code in sector 360 without a plausible VTOC does not
+	// make a boot-only disk DOS 2.x.
+	odd := bootDisk(2, 0x5000, 0x50B1)
+	copy(odd[359*128:], []byte{0x02, 0xFF, 0xFF, 0xFF, 0xFF})
+	if f := openATR(t, atr(odd)).Format().Filesystem; f != "unrecognized DOS (bootable disk)" {
+		t.Errorf("boot disk with VTOC code 2: filesystem = %q", f)
 	}
 
 	// Implausible boot headers are not bootable disks.

@@ -182,9 +182,9 @@ func TestListRecursive(t *testing.T) {
 		"A/B": {{Name: "f3"}},
 		"X/A": {{Name: "f4"}},
 	}
-	got, err := listRecursive(dirs, "", []disk.Entry{{Name: "A", IsDir: true}, {Name: "f1"}}, 0)
-	if err != nil {
-		t.Fatalf("listRecursive error: %v", err)
+	got, warnings := listRecursive(dirs, "", []disk.Entry{{Name: "A", IsDir: true}, {Name: "f1"}}, 0)
+	if len(warnings) != 0 {
+		t.Fatalf("listRecursive warnings: %q", warnings)
 	}
 	var names []string
 	for _, e := range got {
@@ -195,9 +195,9 @@ func TestListRecursive(t *testing.T) {
 	}
 
 	// Paths passed to ListDir are relative to the starting directory.
-	got, err = listRecursive(dirs, "X", []disk.Entry{{Name: "A", IsDir: true}}, 0)
-	if err != nil || len(got) != 2 || got[1].Name != "A/f4" {
-		t.Errorf("listRecursive(X) = %+v, %v; want A, A/f4", got, err)
+	got, warnings = listRecursive(dirs, "X", []disk.Entry{{Name: "A", IsDir: true}}, 0)
+	if len(warnings) != 0 || len(got) != 2 || got[1].Name != "A/f4" {
+		t.Errorf("listRecursive(X) = %+v, %q; want A, A/f4", got, warnings)
 	}
 
 	// A directory containing itself must not recurse forever.
@@ -207,8 +207,16 @@ func TestListRecursive(t *testing.T) {
 		cyclic[path] = []disk.Entry{{Name: "d", IsDir: true}}
 		path += "/d"
 	}
-	if _, err := listRecursive(cyclic, "", []disk.Entry{{Name: "d", IsDir: true}}, 0); err == nil || !strings.Contains(err.Error(), "too deeply") {
-		t.Errorf("listRecursive(cyclic) error = %v, want nested too deeply", err)
+	got, warnings = listRecursive(cyclic, "", []disk.Entry{{Name: "d", IsDir: true}}, 0)
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "nested too deeply, not listed") || len(got) != maxDirDepth+1 {
+		t.Errorf("listRecursive(cyclic) = %d entries, warnings %q; want %d entries and a nested too deeply warning", len(got), warnings, maxDirDepth+1)
+	}
+
+	// A directory that cannot be listed is skipped with a warning; its
+	// siblings are still listed.
+	got, warnings = listRecursive(dirs, "", []disk.Entry{{Name: "missing", IsDir: true}, {Name: "A", IsDir: true}}, 0)
+	if len(warnings) != 1 || !strings.Contains(warnings[0], `directory "missing" could not be listed`) || len(got) != 5 {
+		t.Errorf("listRecursive with a bad directory = %+v, warnings %q", got, warnings)
 	}
 }
 
@@ -532,11 +540,17 @@ func TestRunDefaultLs(t *testing.T) {
 		t.Errorf("default listing is not recursive:\n%s", out.String())
 	}
 
-	// Unknown commands, directories and missing files are still errors.
-	for _, arg := range []string{"nosuchcommand", "images", "images/nope.img"} {
+	// Errors: an unknown command gets the help; a directory or a missing
+	// image path gets a specific error.
+	for arg, want := range map[string]string{
+		"nosuchcommand":   "Unknown option or command: nosuchcommand",
+		"images":          `Error: "images" is a directory, not a disk image`,
+		"images/nope.img": `Error opening disk image "images/nope.img"`,
+		"nope.atr":        `Error opening disk image "nope.atr"`,
+	} {
 		var stdout, stderr bytes.Buffer
-		if code := run([]string{arg}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), "Unknown option or command: "+arg) {
-			t.Errorf("run(%q) = %d, stderr %q; want unknown command error", arg, code, stderr.String())
+		if code := run([]string{arg}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), want) {
+			t.Errorf("run(%q) = %d, stderr %q; want %q", arg, code, stderr.String(), want)
 		}
 	}
 
@@ -588,7 +602,7 @@ func TestRunAtariBootDisk(t *testing.T) {
 		t.Fatalf("run(game.atr) = %d (stderr: %s)", code, stderr.String())
 	}
 	for _, w := range []string{
-		"  Filesystem: none (bootable disk)\n",
+		"  Filesystem: unrecognized DOS (bootable disk)\n",
 		// The boot header replaces the file listing.
 		"bytes/sector\n\nContents:\n  Atari boot: 2 sectors loaded at $5000, init $50B1\n\nCapacity:\n",
 		"  In-use: 100.0%    720 sectors",
@@ -623,5 +637,41 @@ func TestRunProDOSSubdirectories(t *testing.T) {
 	stdout.Reset()
 	if code := run([]string{"cat", path, "DIR1/HELLOAGAIN"}, &stdout, &stderr); code != 0 || stdout.Len() != 21 {
 		t.Errorf("cat DIR1/HELLOAGAIN = code %d, %d bytes", code, stdout.Len())
+	}
+}
+
+// Damaged ProDOS subdirectories are skipped with a warning; the rest of the
+// disk is still listed.
+func TestRunProDOSDamagedDirectories(t *testing.T) {
+	raw, err := os.ReadFile("images/appleii/prodosdirs.dsk")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := func(img []byte, i int) []byte { off := 11*256 + 4 + i*39; return img[off : off+39] }
+	dir := t.TempDir()
+	for name, tc := range map[string]struct {
+		key  uint16 // new key block for DIR1
+		want []string
+	}{
+		"out of range": {300, []string{"  d           0 2020-11-07 17:50:00 DIR2/\n", `Warning: directory "DIR1" could not be listed`}},
+		"cyclic":       {2, []string{"  d           0 2020-11-07 17:50:00 DIR2/\n", "nested too deeply, not listed"}},
+	} {
+		img := append([]byte{}, raw...)
+		e := entry(img, 2)
+		e[0x11], e[0x12] = byte(tc.key), byte(tc.key>>8)
+		path := filepath.Join(dir, strings.ReplaceAll(name, " ", "_")+".dsk")
+		if err := os.WriteFile(path, img, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{path}, &stdout, &stderr); code != 0 {
+			t.Errorf("%s: run = %d (stderr: %s)", name, code, stderr.String())
+			continue
+		}
+		for _, w := range tc.want {
+			if !strings.Contains(stdout.String(), w) {
+				t.Errorf("%s: stdout missing %q; got:\n%s", name, w, stdout.String())
+			}
+		}
 	}
 }

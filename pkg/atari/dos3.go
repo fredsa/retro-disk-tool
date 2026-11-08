@@ -117,8 +117,7 @@ func (d *Disk) dos3Entries() []dos3Entry {
 }
 
 // dos3Read returns a file's data, following its block chain through the
-// FAT. The directory length is the file's size in bytes; it must fit the
-// file's blocks.
+// FAT and trimming it to the directory length.
 func (d *Disk) dos3Read(e dos3Entry) ([]byte, error) {
 	fat, n := d.dos3FAT(), d.dos3Blocks()
 	var data []byte
@@ -147,10 +146,18 @@ func (d *Disk) dos3Read(e dos3Entry) ([]byte, error) {
 		}
 		b = int(next)
 	}
-	if e.length > len(data) || e.length <= len(data)-dos3BlockSize {
-		return data, fmt.Errorf("file length %d does not fit its %d blocks", e.length, e.blocks)
+	// The directory keeps the length in 16 bits: an empty file may still own
+	// a block, and a file over 64 KiB (possible on a 1040 sector disk) keeps
+	// only the low 16 bits, so its length is the one ending in the last block.
+	if e.length == 0 {
+		return data[:0], nil
 	}
-	return data[:e.length], nil
+	for l := e.length; l <= len(data); l += 0x10000 {
+		if l > len(data)-dos3BlockSize {
+			return data[:l], nil
+		}
+	}
+	return data, fmt.Errorf("file length %d does not fit its %d blocks", e.length, e.blocks)
 }
 
 func (d *Disk) dos3List() []Entry {
@@ -199,7 +206,7 @@ func (d *Disk) dos3Dump(w io.Writer) {
 			counts["used"]++
 		}
 	}
-	fmt.Fprintf(w, "  Blocks: %d of %d sectors (%d used, %d free, %d bad), data from sector %d\n",
+	fmt.Fprintf(w, "  Blocks: %d blocks of %d sectors (%d used, %d free, %d bad), data from sector %d\n",
 		len(fat), dos3BlockSecs, counts["used"], counts["free"], counts["bad"], dos3DataFirst)
 	entries := d.dos3Entries()
 	fmt.Fprintf(w, "  Directory Entries (%d):\n", len(entries))

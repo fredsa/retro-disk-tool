@@ -2,6 +2,7 @@ package apple2_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"os"
 	"strings"
 	"testing"
@@ -344,5 +345,39 @@ func TestProDOSSubdirectories(t *testing.T) {
 	}
 	if _, err := dos.ListDir("X"); err == nil {
 		t.Error("DOS 3.3 ListDir(X) succeeded, want error")
+	}
+}
+
+// editProDOSDirs returns a copy of prodosdirs.dsk with the volume
+// directory's entries 1-3 (HELLOWORLD, DIR1, DIR2) passed to edit. In this
+// DOS order image, the first half of block 2 is DOS sector 11.
+func editProDOSDirs(t *testing.T, edit func(entry func(int) []byte)) apple2.Image {
+	t.Helper()
+	raw, err := os.ReadFile(testimages.Path(t, "appleii", "prodosdirs.dsk"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = append([]byte{}, raw...)
+	edit(func(i int) []byte { off := 11*256 + 4 + i*39; return raw[off : off+39] })
+	img, err := apple2.Open("x.dsk", bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return img
+}
+
+func TestProDOSDamagedDirectories(t *testing.T) {
+	// File type $0F with a regular (seedling) storage type is a file.
+	img := editProDOSDirs(t, func(entry func(int) []byte) { entry(1)[0x10] = 0x0F })
+	if entries, _ := img.List(); entries[0].Name != "HELLOWORLD" || entries[0].IsDir {
+		t.Errorf("HELLOWORLD with file type $0F = %+v, want a file", entries[0])
+	}
+
+	// DIR2 pointing back at the volume directory (block 2) is dumped once.
+	img = editProDOSDirs(t, func(entry func(int) []byte) { binary.LittleEndian.PutUint16(entry(3)[0x11:], 2) })
+	var dump bytes.Buffer
+	if err := img.Dump(&dump); err != nil || !strings.Contains(dump.String(), "DIR2/[ERROR: directory at block 2 already listed]") ||
+		strings.Count(dump.String(), "HELLOWORLD") != 1 {
+		t.Errorf("Dump with a cyclic directory:\n%s", dump.String())
 	}
 }

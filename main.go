@@ -119,36 +119,40 @@ func printFormat(w io.Writer, f *util.FormatInfo) {
 const maxDirDepth = 32
 
 // listRecursive expands the directories in entries (the contents of dir)
-// depth first, naming each entry by its path relative to dir.
-func listRecursive(dl disk.DirLister, dir string, entries []disk.Entry, depth int) ([]disk.Entry, error) {
+// depth first, naming each entry by its path relative to dir. Directories
+// that cannot be listed (damaged, or nested too deeply, as a cycle on a
+// corrupt disk would be) are skipped with a warning, so the rest of the
+// listing is still shown.
+func listRecursive(dl disk.DirLister, dir string, entries []disk.Entry, depth int) ([]disk.Entry, []string) {
 	var out []disk.Entry
+	var warnings []string
 	for _, e := range entries {
 		out = append(out, e)
 		if !e.IsDir {
 			continue
 		}
-		if depth >= maxDirDepth {
-			return out, fmt.Errorf("directory %q nested too deeply", e.Name)
-		}
 		path := e.Name
 		if dir != "" {
 			path = dir + "/" + e.Name
 		}
+		if depth >= maxDirDepth {
+			warnings = append(warnings, fmt.Sprintf("directory %q nested too deeply, not listed", path))
+			continue
+		}
 		sub, err := dl.ListDir(path)
 		if err != nil {
-			return out, err
+			warnings = append(warnings, fmt.Sprintf("directory %q could not be listed: %v", path, err))
+			continue
 		}
-		sub, err = listRecursive(dl, path, sub, depth+1)
+		sub, subWarnings := listRecursive(dl, path, sub, depth+1)
 		for _, s := range sub {
 			s.Name = e.Name + "/" + s.Name
 			s.Native = nil
 			out = append(out, s)
 		}
-		if err != nil {
-			return out, err
-		}
+		warnings = append(warnings, subWarnings...)
 	}
-	return out, nil
+	return out, warnings
 }
 
 func runLs(args []string, stdout, stderr io.Writer) int {
@@ -196,9 +200,10 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 	} else {
 		err = fmt.Errorf("subdirectories are not supported for this disk format")
 	}
+	var warnings []string
 	if err == nil && *recursiveFlag {
 		if dl, ok := reader.(disk.DirLister); ok {
-			entries, err = listRecursive(dl, dirPath, entries, 0)
+			entries, warnings = listRecursive(dl, dirPath, entries, 0)
 		}
 	}
 	if err != nil {
@@ -233,11 +238,12 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if wr, ok := reader.(disk.Warner); ok {
-		if warnings := wr.Warnings(); len(warnings) > 0 {
-			fmt.Fprintln(stdout)
-			for _, w := range warnings {
-				warnf(stdout, "%s", w)
-			}
+		warnings = append(warnings, wr.Warnings()...)
+	}
+	if len(warnings) > 0 {
+		fmt.Fprintln(stdout)
+		for _, w := range warnings {
+			warnf(stdout, "%s", w)
 		}
 	}
 
@@ -507,8 +513,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	default:
 		// A disk image without a command lists it: rdt <file> [<dir>]
-		// is the same as rdt ls -l -r <file> [<dir>].
-		if fi, err := os.Stat(args[0]); err == nil && !fi.IsDir() {
+		// is the same as rdt ls -l -r <file> [<dir>]. Anything that looks
+		// like a path (but is missing) gets the file error, not the help.
+		fi, err := os.Stat(args[0])
+		switch {
+		case err == nil && fi.IsDir():
+			fmt.Fprintf(stderr, "Error: %q is a directory, not a disk image\n", args[0])
+			return 1
+		case err == nil, !strings.HasPrefix(args[0], "-") && strings.ContainsAny(args[0], `./\`):
 			return runLs(append([]string{"-l", "-r"}, args...), stdout, stderr)
 		}
 		fmt.Fprintf(stderr, "Unknown option or command: %s\n\n", args[0])

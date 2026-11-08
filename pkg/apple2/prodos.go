@@ -1,6 +1,7 @@
 package apple2
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -120,13 +121,21 @@ func (p *ProDOSDisk) ListDir(path string) ([]DiskEntry, error) {
 	return p.readDirBlocks(block)
 }
 
-// dumpDir writes a directory's entries, then its subdirectories' entries.
-func (p *ProDOSDisk) dumpDir(w io.Writer, block int, prefix string, depth int) {
+// dumpDir writes a directory's entries, then its subdirectories' entries,
+// returning how many entries it wrote. Each directory is listed once, so a
+// subdirectory pointing back at an ancestor cannot loop.
+func (p *ProDOSDisk) dumpDir(w io.Writer, block int, prefix string, depth int, visited map[int]bool) int {
+	if visited[block] {
+		fmt.Fprintf(w, "    %s[ERROR: directory at block %d already listed]\n", prefix, block)
+		return 0
+	}
+	visited[block] = true
 	entries, err := p.readDirBlocks(block)
 	if err != nil {
-		fmt.Fprintf(w, "    [ERROR: %v]\n", err)
-		return
+		fmt.Fprintf(w, "    %s[ERROR: %v]\n", prefix, err)
+		return 0
 	}
+	n := len(entries)
 	for _, e := range entries {
 		lockStr := " "
 		if e.Locked {
@@ -138,9 +147,10 @@ func (p *ProDOSDisk) dumpDir(w io.Writer, block int, prefix string, depth int) {
 		}
 		fmt.Fprintf(w, "   %s%-16s %-3s %4d blocks (%d bytes)\n", lockStr, name, e.FileType, e.Blocks, e.Size)
 		if e.IsDir && depth < 16 {
-			p.dumpDir(w, e.key, name, depth+1)
+			n += p.dumpDir(w, e.key, name, depth+1, visited)
 		}
 	}
+	return n
 }
 
 func (p *ProDOSDisk) readDirBlocks(startBlock int) ([]DiskEntry, error) {
@@ -205,7 +215,9 @@ func (p *ProDOSDisk) readDirBlocks(startBlock int) ([]DiskEntry, error) {
 				modTime = creationTime
 			}
 
-			isDir := storageType == 0x0D || fileType == 0x0F
+			// Only storage type $D is a subdirectory: its key block is a
+			// directory block (file type $0F alone is not enough).
+			isDir := storageType == 0x0D
 			size := eof
 			if isDir {
 				size = 0
@@ -486,12 +498,11 @@ func (p *ProDOSDisk) Dump(w io.Writer) error {
 			usage.InUseSectors, usage.FreeSectors, usage.TotalSectors)
 	}
 
-	entries, err := p.List()
-	if err == nil {
-		fmt.Fprintf(w, "  Directory Entries (%d):\n", len(entries))
-		p.dumpDir(w, 2, "", 0)
-	}
-	return nil
+	var tree bytes.Buffer
+	n := p.dumpDir(&tree, 2, "", 0, map[int]bool{})
+	fmt.Fprintf(w, "  Directory Entries (%d):\n", n)
+	_, err = w.Write(tree.Bytes())
+	return err
 }
 
 // Format describes the ProDOS filesystem and geometry.

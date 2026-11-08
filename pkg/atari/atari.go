@@ -148,29 +148,42 @@ func newDisk(data []byte, secSize int, raw, allowBoot bool) (*Disk, error) {
 		d.data, d.inverted = inv, true
 		vtoc, _ = d.readSector(vtocSector)
 	}
-	if vtoc[0] != 2 {
-		err3 := d.checkDOS3()
-		if err3 == nil {
-			d.dos3 = true
-			return d, nil
-		}
-		if !allowBoot {
-			return nil, fmt.Errorf("unsupported Atari DOS: not DOS 2.x (VTOC code %d) and not DOS 3 (%v)", vtoc[0], err3)
-		}
-		if errBoot := d.checkBoot(); errBoot != nil {
-			return nil, fmt.Errorf("not an Atari disk: not DOS 2.x (VTOC code %d), not DOS 3 (%v), and not bootable (%v)", vtoc[0], err3, errBoot)
-		}
-		d.bootOnly = true
-		d.notDOS = fmt.Sprintf("not DOS 2.x (VTOC code %d); not DOS 3 (%v)", vtoc[0], err3)
+	// DOS 3 has the strongest structural check, so try it first: on a DOS 3
+	// (or boot-only) disk, sector 360 is ordinary data that may happen to
+	// start with the DOS 2.x VTOC code.
+	err3 := d.checkDOS3()
+	if err3 == nil {
+		d.dos3 = true
 		return d, nil
 	}
-	if raw {
-		// Without an ATR header to go by, require a plausible VTOC.
-		if total := int(binary.LittleEndian.Uint16(vtoc[1:3])); total == 0 || total > n {
-			return nil, fmt.Errorf("not an Atari DOS 2.x disk: invalid VTOC sector count %d", total)
-		}
+	err2 := d.checkDOS2(vtoc)
+	if err2 == nil {
+		return d, nil
 	}
+	if !allowBoot {
+		return nil, fmt.Errorf("unsupported Atari DOS: not DOS 2.x (%v) and not DOS 3 (%v)", err2, err3)
+	}
+	if errBoot := d.checkBoot(); errBoot != nil {
+		return nil, fmt.Errorf("not an Atari disk: not DOS 2.x (%v), not DOS 3 (%v), and not bootable (%v)", err2, err3, errBoot)
+	}
+	d.bootOnly = true
+	d.notDOS = fmt.Sprintf("not DOS 2.x (%v); not DOS 3 (%v)", err2, err3)
 	return d, nil
+}
+
+// checkDOS2 reports whether sector 360 is a plausible DOS 2.x VTOC: code 2,
+// a total sector count within the disk, and no more free sectors than that.
+func (d *Disk) checkDOS2(vtoc []byte) error {
+	total, free := int(binary.LittleEndian.Uint16(vtoc[1:3])), int(binary.LittleEndian.Uint16(vtoc[3:5]))
+	switch {
+	case vtoc[0] != 2:
+		return fmt.Errorf("VTOC code %d", vtoc[0])
+	case total == 0 || total > d.numSectors:
+		return fmt.Errorf("invalid VTOC sector count %d", total)
+	case free > total:
+		return fmt.Errorf("VTOC free sector count %d exceeds %d", free, total)
+	}
+	return nil
 }
 
 func sectorLen(n, secSize int) int {
@@ -365,21 +378,18 @@ func (d *Disk) FormattedDesc() string {
 
 // Format describes the ATR format and geometry.
 func (d *Disk) Format() *util.FormatInfo {
-	fsName := "Atari DOS 2.0S"
 	sectors := "18"
-	note := ""
+	if d.isEnhanced() {
+		sectors = "26"
+	}
+	fsName, note := "Atari DOS 2.0S", ""
 	switch {
 	case d.bootOnly:
-		fsName, note = "none (bootable disk)", "Atari "+d.bootHeader().String()
-		if d.isEnhanced() {
-			sectors = "26"
-		}
-	case d.dos3 && d.isEnhanced():
-		fsName, sectors = "Atari DOS 3", "26"
+		fsName, note = "unrecognized DOS (bootable disk)", "Atari "+d.bootHeader().String()
 	case d.dos3:
 		fsName = "Atari DOS 3"
 	case d.isEnhanced():
-		fsName, sectors = "Atari DOS 2.5", "26"
+		fsName = "Atari DOS 2.5"
 	case d.secSize == 256:
 		fsName = "Atari DOS 2.0D"
 	}

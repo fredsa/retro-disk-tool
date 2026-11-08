@@ -126,7 +126,7 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 		if terr == nil {
 			return &trs80Adapter{d: t}, nil
 		}
-		a, aerr := atari.OpenXFD(r, size)
+		a, aerr := atari.OpenXFDDOS(r, size)
 		if aerr == nil {
 			return &atariAdapter{a: a}, nil
 		}

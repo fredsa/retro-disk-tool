@@ -567,3 +567,33 @@ func TestRunAtariDOS3(t *testing.T) {
 		t.Errorf("cat HELLO.XEX = code %d, %d bytes", code, stdout.Len())
 	}
 }
+
+// A bootable Atari disk without a DOS lists no files; as a .img (a guessed
+// format) it is not claimed as an Atari disk.
+func TestRunAtariBootDisk(t *testing.T) {
+	sectors := make([]byte, 720*128)
+	copy(sectors, []byte{0x00, 0x02, 0x00, 0x50, 0xB1, 0x50})
+	p := len(sectors) / 16
+	img := append([]byte{0x96, 0x02, byte(p), byte(p >> 8), 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, sectors...)
+	dir := t.TempDir()
+	atr, raw := filepath.Join(dir, "game.atr"), filepath.Join(dir, "game.img")
+	if err := os.WriteFile(atr, img, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(raw, sectors, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{atr}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(game.atr) = %d (stderr: %s)", code, stderr.String())
+	}
+	for _, w := range []string{"  Filesystem: none (bootable disk)\n", "  Comment:    Atari boot: 2 sectors loaded at $5000, init $50B1\n", "  In-use: 100.0%    720 sectors"} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+	stderr.Reset()
+	if code := run([]string{"ls", raw}, &stdout, &stderr); code != 1 || !strings.Contains(stderr.String(), "unrecognized disk image") {
+		t.Errorf("ls game.img = code %d, stderr %q; want unrecognized", code, stderr.String())
+	}
+}

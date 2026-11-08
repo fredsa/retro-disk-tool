@@ -125,14 +125,20 @@ func TestDOS3BlockChains(t *testing.T) {
 	}
 
 	// Not DOS 3: a FAT entry past the last block, or a FAT that disagrees
-	// with the directory.
-	for name, edit := range map[string]func(entry, fat []byte, sector func(int) []byte){
-		"entry past the last block": func(_, fat []byte, _ func(int) []byte) { fat[100] = 1 },
-		"unlisted allocated block":  func(_, fat []byte, _ func(int) []byte) { fat[30] = 0xFD },
+	// with the directory. The disk is still bootable, so it opens as a
+	// boot-only disk whose dump says why DOS 3 was not recognized.
+	for name, tc := range map[string]struct {
+		edit func(entry, fat []byte, sector func(int) []byte)
+		why  string
+	}{
+		"entry past the last block": {func(_, fat []byte, _ func(int) []byte) { fat[100] = 1 }, "FAT entry 100 past the last block is $01"},
+		"unlisted allocated block":  {func(_, fat []byte, _ func(int) []byte) { fat[30] = 0xFD }, "FAT allocates 3 blocks but the directory lists 2"},
 	} {
-		bad := dos3Edit(t, edit)
-		if _, err := atari.Open(bytes.NewReader(bad), int64(len(bad))); err == nil || !strings.Contains(err.Error(), "not DOS 3") {
-			t.Errorf("Open(%s) error = %v", name, err)
+		d := openATR(t, dos3Edit(t, tc.edit))
+		var dump bytes.Buffer
+		d.Dump(&dump)
+		if f := d.Format().Filesystem; f != "none (bootable disk)" || !strings.Contains(dump.String(), "not DOS 3 ("+tc.why+")") {
+			t.Errorf("%s: filesystem %q, dump:\n%s", name, f, dump.String())
 		}
 	}
 }

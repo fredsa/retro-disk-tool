@@ -56,7 +56,8 @@ TRS-80 images may hold TRSDOS 1.3 (Model III) or LDOS family (LDOS 5, TRSDOS 6, 
 handled) and then checked for a TRS-80 or IBM PC filesystem. Every track must have the same layout. `ls` shows the
 comment stored in the image.
 
-Atari images may hold Atari DOS 2.x (2.0S, 2.5, 2.0D) or Atari DOS 3 volumes. Atari raw (headerless) images are
+Atari images may hold Atari DOS 2.x (2.0S, 2.5, 2.0D) or Atari DOS 3 volumes, or be bootable disks without a DOS
+(typical of games), for which `ls` shows the boot header instead of files. Atari raw (headerless) images are
 recognized by size. Raw dumps of disks written by Atari drives, which store data
 with all bits inverted, are detected and corrected automatically.
 

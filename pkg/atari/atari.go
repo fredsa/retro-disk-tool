@@ -54,6 +54,8 @@ type Disk struct {
 	raw        bool // headerless XFD image
 	inverted   bool // all bits were inverted in the image
 	dos3       bool // Atari DOS 3 filesystem (see dos3.go)
+	bootOnly   bool   // bootable disk without a DOS filesystem (see boot.go)
+	notDOS     string // why a boot-only disk is not DOS 2.x or DOS 3
 }
 
 type rawEntry struct {
@@ -94,14 +96,21 @@ func Open(r io.ReaderAt, size int64) (*Disk, error) {
 	if !whole {
 		return nil, fmt.Errorf("ATR image size %d is not a whole number of %d byte sectors", len(data), secSize)
 	}
-	return newDisk(data, secSize, false)
+	return newDisk(data, secSize, false, true)
 }
 
 // OpenXFD parses a raw (headerless) image, recognized by its size: 720 or
 // 1040 single density sectors, or 720 double density sectors. Images whose
 // bits are all inverted (raw dumps of disks written by Atari drives, which
 // store data inverted) are detected and corrected.
-func OpenXFD(r io.ReaderAt, size int64) (*Disk, error) {
+func OpenXFD(r io.ReaderAt, size int64) (*Disk, error) { return openXFD(r, size, true) }
+
+// OpenXFDDOS is OpenXFD for images that may not be Atari disks at all (e.g.
+// .img files): it requires a DOS filesystem, never accepting a boot-only
+// disk.
+func OpenXFDDOS(r io.ReaderAt, size int64) (*Disk, error) { return openXFD(r, size, false) }
+
+func openXFD(r io.ReaderAt, size int64, allowBoot bool) (*Disk, error) {
 	var secSize int
 	switch size {
 	case 720 * 128, 1040 * 128:
@@ -115,10 +124,12 @@ func OpenXFD(r io.ReaderAt, size int64) (*Disk, error) {
 	if _, err := r.ReadAt(data, 0); err != nil {
 		return nil, fmt.Errorf("failed to read image: %w", err)
 	}
-	return newDisk(data, secSize, true)
+	return newDisk(data, secSize, true, allowBoot)
 }
 
-func newDisk(data []byte, secSize int, raw bool) (*Disk, error) {
+// newDisk identifies the filesystem: DOS 2.x (VTOC code 2), DOS 3, or, if
+// allowBoot, a bootable disk without a DOS.
+func newDisk(data []byte, secSize int, raw, allowBoot bool) (*Disk, error) {
 	n := len(data) / 128
 	if secSize == 256 {
 		n = 3 + (len(data)-3*128)/256
@@ -143,7 +154,15 @@ func newDisk(data []byte, secSize int, raw bool) (*Disk, error) {
 			d.dos3 = true
 			return d, nil
 		}
-		return nil, fmt.Errorf("unsupported Atari DOS: not DOS 2.x (VTOC code %d) and not DOS 3 (%v)", vtoc[0], err3)
+		if !allowBoot {
+			return nil, fmt.Errorf("unsupported Atari DOS: not DOS 2.x (VTOC code %d) and not DOS 3 (%v)", vtoc[0], err3)
+		}
+		if errBoot := d.checkBoot(); errBoot != nil {
+			return nil, fmt.Errorf("not an Atari disk: not DOS 2.x (VTOC code %d), not DOS 3 (%v), and not bootable (%v)", vtoc[0], err3, errBoot)
+		}
+		d.bootOnly = true
+		d.notDOS = fmt.Sprintf("not DOS 2.x (VTOC code %d); not DOS 3 (%v)", vtoc[0], err3)
+		return d, nil
 	}
 	if raw {
 		// Without an ATR header to go by, require a plausible VTOC.
@@ -239,6 +258,9 @@ func (d *Disk) readChain(start int) ([]byte, error) {
 
 // List returns the directory entries.
 func (d *Disk) List() ([]Entry, error) {
+	if d.bootOnly {
+		return nil, nil
+	}
 	if d.dos3 {
 		return d.dos3List(), nil
 	}
@@ -262,6 +284,9 @@ func (d *Disk) List() ([]Entry, error) {
 
 // ReadFile returns the contents of a named file.
 func (d *Disk) ReadFile(name string) ([]byte, error) {
+	if d.bootOnly {
+		return nil, fmt.Errorf("file %q not found: this bootable disk has no DOS filesystem", name)
+	}
 	if d.dos3 {
 		return d.dos3ReadFile(name)
 	}
@@ -305,9 +330,15 @@ func (d *Disk) freeSectors() (int, error) {
 
 // Usage computes sector usage from the VTOC bitmap(s).
 func (d *Disk) Usage() (*DiskUsage, error) {
-	free, err := d.freeSectors()
-	if d.dos3 {
-		free, err = d.dos3FreeSectors(), nil
+	var free int
+	var err error
+	switch {
+	case d.bootOnly:
+		// No free space map: the boot loader owns the whole disk.
+	case d.dos3:
+		free = d.dos3FreeSectors()
+	default:
+		free, err = d.freeSectors()
 	}
 	if err != nil {
 		return nil, err
@@ -336,7 +367,13 @@ func (d *Disk) FormattedDesc() string {
 func (d *Disk) Format() *util.FormatInfo {
 	fsName := "Atari DOS 2.0S"
 	sectors := "18"
+	comment := ""
 	switch {
+	case d.bootOnly:
+		fsName, comment = "none (bootable disk)", "Atari "+d.bootHeader().String()
+		if d.isEnhanced() {
+			sectors = "26"
+		}
 	case d.dos3 && d.isEnhanced():
 		fsName, sectors = "Atari DOS 3", "26"
 	case d.dos3:
@@ -354,6 +391,7 @@ func (d *Disk) Format() *util.FormatInfo {
 		Heads:      1,
 		Sectors:    sectors,
 		SectorSize: d.secSize,
+		Comment:    comment,
 	}
 }
 
@@ -375,6 +413,10 @@ func (d *Disk) Dump(w io.Writer) error {
 	fmt.Fprintf(w, "  Image: %s\n", d.imageDesc())
 	fmt.Fprintf(w, "  Filesystem: %s\n", f.Filesystem)
 	fmt.Fprintf(w, "  Sector size: %d bytes, Sectors: %d (%d bytes)\n", d.secSize, d.numSectors, len(d.data))
+	if d.bootOnly {
+		d.bootDump(w)
+		return nil
+	}
 	if d.dos3 {
 		if u, err := d.Usage(); err == nil {
 			fmt.Fprintf(w, "  In-use: %d sectors, Free: %d sectors, Total: %d sectors\n", u.InUseSectors, u.FreeSectors, u.TotalSectors)

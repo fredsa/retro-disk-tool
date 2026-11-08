@@ -90,7 +90,7 @@ rdt terminal
 ```
 
 `ls` prints the disk image format (`Format:`), the disk label (`Label:`), and the file listing (`Contents:`).
-Running `rdt` with just a file (and optionally a directory) is the same as `rdt ls -l`.
+Running `rdt` with just a file (and optionally a directory) is the same as `rdt ls -l -r`.
 An optional directory argument lists a subdirectory instead of the root, on formats with subdirectories (Amiga,
 IBM PC, C64 D81 / DFI),
 and `-r` lists subdirectories recursively, naming each entry by its path.

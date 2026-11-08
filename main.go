@@ -56,6 +56,12 @@ func formatWithCommas[T int | int64 | uint | uint32 | uint64](n T) string {
 	return string(out)
 }
 
+// warnf prints a warning line, with "Warning:" in yellow if w is a terminal
+// that supports ANSI colors.
+func warnf(w io.Writer, format string, args ...any) {
+	fmt.Fprintf(w, "%s %s\n", terminal.WarningLabel(terminal.Detect(w).ANSI), fmt.Sprintf(format, args...))
+}
+
 func formatFilename(name string) string {
 	if strings.Contains(name, " ") {
 		return fmt.Sprintf("%q", name)
@@ -230,14 +236,14 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		if warnings := wr.Warnings(); len(warnings) > 0 {
 			fmt.Fprintln(stdout)
 			for _, w := range warnings {
-				fmt.Fprintf(stdout, "Warning: %s\n", w)
+				warnf(stdout, "%s", w)
 			}
 		}
 	}
 
 	usage, err := reader.Usage()
 	if err != nil {
-		fmt.Fprintf(stderr, "Warning: unable to calculate disk usage: %v\n", err)
+		warnf(stderr, "unable to calculate disk usage: %v", err)
 		return 0
 	}
 
@@ -378,9 +384,9 @@ func printContents(stdout io.Writer, entries []disk.Entry, dirPath string, long 
 	if long && hasCorrupt {
 		fmt.Fprintln(stdout)
 		if len(corruptWarnings) > 0 {
-			fmt.Fprintf(stdout, "Warning: broken directory on disk (%s)\n", strings.Join(corruptWarnings, "; "))
+			warnf(stdout, "broken directory on disk (%s)", strings.Join(corruptWarnings, "; "))
 		} else {
-			fmt.Fprintf(stdout, "Warning: broken directory on disk (corrupted directory entries)\n")
+			warnf(stdout, "broken directory on disk (corrupted directory entries)")
 		}
 	}
 }

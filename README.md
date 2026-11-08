@@ -103,7 +103,8 @@ extra `Native` column shows the file name as the original computer displayed it,
 - C64: names in quote mode, with PETSCII graphics as Unicode and control codes as reverse video symbols
 
 `terminal` prints what `rdt` can detect about your terminal (platform, emulator, ANSI support) and shows
-sample normal, inverse and flashing text, which is useful for checking how `Native` names will look.
+sample normal, inverse and flashing text and a warning, which is useful for checking how `Native` names and
+warnings will look. When the terminal supports ANSI colors, `Warning:` is shown in yellow.
 
 # Testing
 

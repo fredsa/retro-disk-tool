@@ -18,7 +18,17 @@ const (
 	// and Git Bash. Bright yellow (93) is used because Windows PowerShell's
 	// default scheme remaps plain yellow (33) to its default text color.
 	Flashing = "\x1b[7;93m"
+	// Yellow is bright yellow, for the same reason.
+	Yellow = "\x1b[93m"
 )
+
+// WarningLabel returns "Warning:", in yellow when ansi is true.
+func WarningLabel(ansi bool) string {
+	if ansi {
+		return Yellow + "Warning:" + Normal
+	}
+	return "Warning:"
+}
 
 // Info describes what can be determined about the terminal attached to a writer.
 type Info struct {
@@ -153,9 +163,11 @@ func Print(w io.Writer, info *Info) {
 		fmt.Fprintf(w, "  Normal:   %s\n", "HELLO world")
 		fmt.Fprintf(w, "  Inverse:  %sHELLO world%s\n", Inverse, Normal)
 		fmt.Fprintf(w, "  Flashing: %sHELLO world%s  (inverse yellow; blink is unsupported in many terminals)\n", Flashing, Normal)
+		fmt.Fprintf(w, "  Yellow:   %s something to check\n", WarningLabel(true))
 	} else {
 		fmt.Fprintf(w, "  Normal:   HELLO world\n")
 		fmt.Fprintf(w, "  Inverse:  skipped (ANSI not available)\n")
 		fmt.Fprintf(w, "  Flashing: skipped (ANSI not available)\n")
+		fmt.Fprintf(w, "  Yellow:   skipped (ANSI not available)\n")
 	}
 }

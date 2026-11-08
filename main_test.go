@@ -508,7 +508,7 @@ func TestRunLsADF(t *testing.T) {
 	}
 }
 
-// A file name without a command is the same as ls -l.
+// A file name without a command is the same as ls -l -r.
 func TestRunDefaultLs(t *testing.T) {
 	for _, args := range [][]string{
 		{"images/ibm/720kb.img"},
@@ -518,10 +518,17 @@ func TestRunDefaultLs(t *testing.T) {
 		if code := run(args, &got, &stderr); code != 0 {
 			t.Fatalf("run(%q) = %d (stderr: %s)", args, code, stderr.String())
 		}
-		run(append([]string{"ls", "-l"}, args...), &want, &stderr)
+		run(append([]string{"ls", "-l", "-r"}, args...), &want, &stderr)
 		if got.String() != want.String() || !strings.Contains(got.String(), "Type     Size Modified            Name") {
-			t.Errorf("run(%q) output differs from ls -l:\n%s", args, got.String())
+			t.Errorf("run(%q) output differs from ls -l -r:\n%s", args, got.String())
 		}
+	}
+
+	// Sub-directories are listed recursively.
+	var out, stderr0 bytes.Buffer
+	run([]string{"images/ibm/720kb.img"}, &out, &stderr0)
+	if !strings.Contains(out.String(), "  -          13 2026-11-07 15:35:50 DIR1/FOO.TXT\n") {
+		t.Errorf("default listing is not recursive:\n%s", out.String())
 	}
 
 	// Unknown commands, directories and missing files are still errors.
@@ -534,7 +541,7 @@ func TestRunDefaultLs(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	run([]string{"--help"}, &stdout, &stderr)
-	if !strings.Contains(stdout.String(), "rdt <file> [<dir>]                (same as rdt ls -l)") {
+	if !strings.Contains(stdout.String(), "rdt <file> [<dir>]                (same as rdt ls -l -r)") {
 		t.Errorf("help missing the default ls usage:\n%s", stdout.String())
 	}
 }

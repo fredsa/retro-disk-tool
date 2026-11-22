@@ -28,6 +28,7 @@ ZX81     | `P`, `P81` | N/A    | File    | N/A       | N/A   | N/A     | N/A
 TRS-80 Model III | `IMG` | 180 KiB | SS 5.25"| 40   | 1     | 18      | 256
 TRS-80 Model 4 | `IMD` | 180 KiB | SS 5.25"| 40     | 1     | 18      | 256
 IBM PC   | `IMG`, `IMA`, `VFD` | 160 KiB - 2.88 MiB | 5.25" / 3.5" | 40 / 80 | 1 / 2 | 8 - 36 | 512
+CP/M-86  | `IMG`, `IMA`, `VFD`, `CPM`, `IMD` | 160 KiB - 1.44 MiB | 5.25" / 3.5" / 8" | 40 / 77 / 80 | 1 / 2 | 5 - 26 | 128 / 512 / 1024
 
 Apple II images may hold Apple DOS 3.x (13 or 16 sector) or ProDOS volumes. `NIB` and `WOZ` (v1 and v2)
 images are decoded from their GCR nibble / bitstream data (5-and-3 and 6-and-2 encoding).
@@ -53,13 +54,18 @@ TRS-80 images may hold TRSDOS 1.3 (Model III) or LDOS family (LDOS 5, TRSDOS 6, 
 `NAME/EXT` (`cat` also accepts `NAME.EXT`).
 
 `IMD` (ImageDisk) images are decoded into sectors (compressed, deleted data, data error and unavailable sectors are
-handled) and then checked for a TRS-80 or IBM PC filesystem. Every track must have the same layout. `ls` shows the
-comment stored in the image.
+handled) and then checked for a TRS-80, IBM PC or CP/M-86 filesystem. Every track must have the same layout. `ls` shows
+the comment stored in the image.
 
 Atari raw (headerless) images are recognized by size. Raw dumps of disks written by Atari drives, which store data
 with all bits inverted, are detected and corrected automatically.
 
-`IMG` files are checked for an IBM PC FAT volume, then TRS-80 TRSDOS 1.3, then Atari DOS 2.x.
+`IMG` files are checked for an IBM PC FAT volume, then TRS-80 TRSDOS 1.3, then Atari DOS 2.x, then CP/M-86.
+
+CP/M-86 images may hold standard IBM PC floppy formats (160 KiB, 320 KiB, 360 KiB, 720 KiB, 1.2 MiB, 1.44 MiB,
+including out-and-back double-sided layouts and 144FEAT formats), 8" SSSD (250 KiB) CP/M floppies, or MBR type `0xDB`
+hard disk partitions. CP/M 3 / Concurrent CP/M-86 disk labels, timestamps, exact byte counts and non-zero user areas
+(`U:NAME.EXT`) are supported.
 
 Every byte of a file must be accounted for: a file whose size does not exactly match its format (for example
 trailing bytes after a program or cartridge) is rejected rather than partially interpreted.

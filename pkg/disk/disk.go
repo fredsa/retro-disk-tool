@@ -12,6 +12,7 @@ import (
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/apple2"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/atari"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/c64"
+	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/cpm"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/ibm"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/imd"
 	"github.com/fredsa/retro-disk-tool/cmd/rdt/pkg/trs80"
@@ -119,9 +120,13 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 			return &ibmAdapter{d: d}, nil
 		}
 		if ext != ".img" {
-			return nil, err
+			c, cerr := cpm.Open(r, size)
+			if cerr == nil {
+				return &cpmAdapter{d: c}, nil
+			}
+			return nil, fmt.Errorf("unrecognized disk image:\n  IBM PC:  %v\n  CP/M-86: %v", err, cerr)
 		}
-		// .img is also used for TRS-80 and Atari raw sector images.
+		// .img is also used for TRS-80, Atari and CP/M-86 raw sector images.
 		t, terr := trs80.Open(r, size)
 		if terr == nil {
 			return &trs80Adapter{d: t}, nil
@@ -130,7 +135,17 @@ func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 		if aerr == nil {
 			return &atariAdapter{a: a}, nil
 		}
-		return nil, fmt.Errorf("unrecognized disk image:\n  IBM PC: %v\n  TRS-80: %v\n  Atari:  %v", err, terr, aerr)
+		c, cerr := cpm.Open(r, size)
+		if cerr == nil {
+			return &cpmAdapter{d: c}, nil
+		}
+		return nil, fmt.Errorf("unrecognized disk image:\n  IBM PC: %v\n  TRS-80: %v\n  Atari:  %v\n  CP/M:   %v", err, terr, aerr, cerr)
+	case ".cpm":
+		c, err := cpm.Open(r, size)
+		if err != nil {
+			return nil, err
+		}
+		return &cpmAdapter{d: c}, nil
 	case ".imd":
 		return openIMD(r, size)
 	case ".xfd":
@@ -714,9 +729,73 @@ func openIMD(r io.ReaderAt, size int64) (Reader, error) {
 		return wrap(&ibmAdapter{d: d}), nil
 	}
 	reasons = append(reasons, "IBM PC: "+err.Error())
+	c, cerr := cpm.OpenImage(data, geo.Cylinders, geo.Heads, geo.Sectors, geo.SectorSize, desc)
+	if cerr == nil {
+		return wrap(&cpmAdapter{d: c}), nil
+	}
+	reasons = append(reasons, "CP/M-86: "+cerr.Error())
 	return nil, fmt.Errorf("unrecognized filesystem in IMD image (%d cylinders, %d heads, %d x %d byte sectors):\n  %s",
 		geo.Cylinders, geo.Heads, geo.Sectors, geo.SectorSize, strings.Join(reasons, "\n  "))
 }
+
+type cpmAdapter struct {
+	d *cpm.Disk
+}
+
+func (a *cpmAdapter) Format() *util.FormatInfo { return a.d.Format() }
+
+func (a *cpmAdapter) Header() *DiskHeader {
+	label := a.d.Label()
+	if label == "" {
+		return nil
+	}
+	return &DiskHeader{Name: label}
+}
+
+func (a *cpmAdapter) List() ([]Entry, error) {
+	entries, err := a.d.List()
+	if err != nil {
+		return nil, err
+	}
+	res := make([]Entry, len(entries))
+	for i, e := range entries {
+		res[i] = Entry{
+			Name:    e.Name,
+			Size:    e.Size,
+			ModTime: e.ModTime,
+			Corrupt: e.Corrupt,
+			Error:   e.Error,
+		}
+	}
+	return res, nil
+}
+
+func (a *cpmAdapter) Usage() (*Usage, error) {
+	u, err := a.d.Usage()
+	if err != nil {
+		return nil, err
+	}
+	return &Usage{
+		FormattedCapacity:   u.FormattedCapacity,
+		FormattedDesc:       u.FormattedDesc,
+		UnformattedCapacity: u.UnformattedCapacity,
+		UnformattedDesc:     u.UnformattedDesc,
+		SectorSize:          u.SectorSize,
+		TotalSectors:        u.TotalSectors,
+		InUseSectors:        u.InUseSectors,
+		FreeSectors:         u.FreeSectors,
+		TotalBytes:          u.TotalBytes,
+		InUseBytes:          u.InUseBytes,
+		FreeBytes:           u.FreeBytes,
+		HasUsage:            true,
+	}, nil
+}
+
+func (a *cpmAdapter) Warnings() []string { return a.d.Warnings() }
+
+func (a *cpmAdapter) ReadFile(path string) ([]byte, error) { return a.d.ReadFile(path) }
+
+func (a *cpmAdapter) Dump(w io.Writer) error { return a.d.Dump(w) }
 
 // imdAdapter presents a filesystem inside an IMD container.
 type imdAdapter struct {

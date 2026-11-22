@@ -545,3 +545,37 @@ func TestRunDefaultLs(t *testing.T) {
 		t.Errorf("help missing the default ls usage:\n%s", stdout.String())
 	}
 }
+
+func TestRunCPM86(t *testing.T) {
+	path := testimages.Path(t, "cpm", "cpm86-1-2x40x8x512-ibm.320.img")
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"ls", "-l", path}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(ls -l %s) = %d (stderr: %s)", path, code, stderr.String())
+	}
+	for _, w := range []string{
+		"Platform:   IBM PC",
+		"Filesystem: CP/M-86",
+		"40 tracks, 2 heads, 8 sectors/track, 512 bytes/sector",
+		"  -       12416                     15:CPM.SYS\n",
+		"  -        1408                     DMEXTR.BAS\n",
+		"Formatted:   320 KiB (327,680 bytes)",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("ls -l stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"cat", path, "DMEXTR.BAS"}, &stdout, &stderr); code != 0 ||
+		!strings.Contains(stdout.String(), "DISPLAY MANAGER EXTERNAL FUNCTIONS") {
+		t.Errorf("cat DMEXTR.BAS = code %d, stderr %q", code, stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"dump", path}, &stdout, &stderr); code != 0 ||
+		!strings.Contains(stdout.String(), "CP/M-86 Disk Image Dump") {
+		t.Errorf("dump = code %d, stderr %q", code, stderr.String())
+	}
+}

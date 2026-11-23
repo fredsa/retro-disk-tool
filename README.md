@@ -91,6 +91,7 @@ rdt ls -l dos.img DOS
 rdt ls -l -r dos.img
 rdt workbench.adf
 rdt dump workbench.adf
+rdt boot dos33.dsk
 rdt cat workbench.adf Clock
 rdt terminal
 ```

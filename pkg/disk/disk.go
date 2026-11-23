@@ -80,6 +80,12 @@ type Warner interface {
 	Warnings() []string
 }
 
+// BootDumper is implemented by readers that can dump a disk's boot sector(s)
+// and boot metadata.
+type BootDumper interface {
+	DumpBoot(w io.Writer) error
+}
+
 func Open(filename string, r io.ReaderAt, size int64) (Reader, error) {
 	ext := strings.ToLower(filepath.Ext(filename))
 	if open, ok := c64Openers[ext]; ok {
@@ -498,6 +504,13 @@ func (a *apple2Adapter) ReadFile(path string) ([]byte, error) {
 
 func (a *apple2Adapter) Dump(w io.Writer) error {
 	return a.img.Dump(w)
+}
+
+func (a *apple2Adapter) DumpBoot(w io.Writer) error {
+	if bd, ok := a.img.(apple2.BootDumper); ok {
+		return bd.DumpBoot(w)
+	}
+	return fmt.Errorf("boot sector dump is not supported for this disk format")
 }
 
 func (a *adfAdapter) Format() *util.FormatInfo    { return a.fs.Format() }

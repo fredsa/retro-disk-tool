@@ -579,3 +579,25 @@ func TestRunCPM86(t *testing.T) {
 		t.Errorf("dump = code %d, stderr %q", code, stderr.String())
 	}
 }
+
+func TestRunBootAppleDOS33(t *testing.T) {
+	path := testimages.Path(t, "apple", "dos33.dsk")
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"boot", path}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(boot %s) = %d (stderr: %s)", path, code, stderr.String())
+	}
+	for _, w := range []string{
+		"Platform:   Apple II",
+		"Boot Sector (Track 0, Sector 0, 256 bytes):",
+		"Load address:  $0800 (entry point $0801)",
+		"Sector count:  1 (ROM loads 1 sector(s) to $0800)",
+		"Boot loader:   Apple DOS 3.3 Boot1",
+		"Stage 2 load:  $3600 (9 additional sectors from Track 0)",
+		"  0800: 01 A5 27 C9 09 D0 18 A5  2B 4A 4A 4A 4A 09 C0 85",
+		"  08F0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 36 09",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("boot stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
+}

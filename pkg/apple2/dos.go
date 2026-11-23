@@ -345,6 +345,25 @@ func (d *DOSDisk) Dump(w io.Writer) error {
 	return nil
 }
 
+// DumpBoot writes the Apple DOS boot sector (Track 0, Sector 0) and its
+// metadata to w.
+func (d *DOSDisk) DumpBoot(w io.Writer) error {
+	sec, err := d.readSector(0, 0)
+	if err != nil {
+		return fmt.Errorf("failed to read boot sector (track 0, sector 0): %w", err)
+	}
+	fmt.Fprintf(w, "Boot Sector (Track 0, Sector 0, %d bytes):\n", len(sec))
+	fmt.Fprintf(w, "  Load address:  $0800 (entry point $0801)\n")
+	fmt.Fprintf(w, "  Sector count:  %d (ROM loads %d sector(s) to $0800)\n", sec[0], sec[0])
+	if sec[0] == 0x01 && sec[1] == 0xA5 && sec[2] == 0x27 {
+		fmt.Fprintf(w, "  Boot loader:   Apple DOS 3.3 Boot1\n")
+		fmt.Fprintf(w, "  Stage 2 load:  $%02X00 (%d additional sectors from Track 0)\n", sec[0xFE], sec[0xFF])
+	}
+	fmt.Fprintln(w)
+	util.HexDump(w, sec, 0x0800)
+	return nil
+}
+
 // Format describes the Apple DOS 3.x filesystem and geometry.
 func (d *DOSDisk) Format() *util.FormatInfo {
 	fsName := "Apple DOS"

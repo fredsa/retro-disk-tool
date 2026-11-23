@@ -24,6 +24,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  rdt ls [-l] [-r] <file> [<dir>]")
 	fmt.Fprintln(w, "  rdt <file> [<dir>]                (same as rdt ls -l -r)")
 	fmt.Fprintln(w, "  rdt dump <file>")
+	fmt.Fprintln(w, "  rdt boot <file>")
 	fmt.Fprintln(w, "  rdt cat <file> <path>")
 	fmt.Fprintln(w, "  rdt terminal")
 }
@@ -36,6 +37,11 @@ func printLsHelp(w io.Writer) {
 func printDumpHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  rdt dump <file>")
+}
+
+func printBootHelp(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  rdt boot <file>")
 }
 
 func printCatHelp(w io.Writer) {
@@ -414,6 +420,55 @@ func runDump(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+func runBoot(args []string, stdout, stderr io.Writer) int {
+	bootFlags := flag.NewFlagSet("boot", flag.ContinueOnError)
+	bootFlags.SetOutput(stderr)
+	bootFlags.Usage = func() {
+		printBootHelp(stderr)
+	}
+	if err := bootFlags.Parse(args); err != nil {
+		return 1
+	}
+	if bootFlags.NArg() != 1 {
+		printBootHelp(stderr)
+		return 1
+	}
+
+	diskPath := bootFlags.Arg(0)
+	f, err := os.Open(diskPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "Error opening file %q: %v\n", diskPath, err)
+		return 1
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		fmt.Fprintf(stderr, "Error getting file info for %q: %v\n", diskPath, err)
+		return 1
+	}
+
+	reader, err := disk.Open(diskPath, f, fi.Size())
+	if err != nil {
+		fmt.Fprintf(stderr, "Error inspecting %q: %v\n", diskPath, err)
+		return 1
+	}
+
+	bd, ok := reader.(disk.BootDumper)
+	if !ok {
+		fmt.Fprintf(stderr, "Error dumping boot sector of %q: boot sector dump is not supported for this disk format\n", diskPath)
+		return 1
+	}
+
+	printFormat(stdout, reader.Format())
+	if err := bd.DumpBoot(stdout); err != nil {
+		fmt.Fprintf(stderr, "Error dumping boot sector of %q: %v\n", diskPath, err)
+		return 1
+	}
+
+	return 0
+}
+
 func runCat(args []string, stdout, stderr io.Writer) int {
 	catFlags := flag.NewFlagSet("cat", flag.ContinueOnError)
 	catFlags.SetOutput(stderr)
@@ -481,6 +536,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runLs(args[1:], stdout, stderr)
 	case "dump":
 		return runDump(args[1:], stdout, stderr)
+	case "boot":
+		return runBoot(args[1:], stdout, stderr)
 	case "cat":
 		return runCat(args[1:], stdout, stderr)
 	case "terminal":

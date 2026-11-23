@@ -2,7 +2,7 @@
 
 The contents of this project is licensed as follows.
 
-## `images/AmigaTestKit121.adf`
+## `images/amiga/AmigaTestKit121.adf`
 
 [Unilicense](https://github.com/keirf/amiga-stuff/blob/testkit-v1.21/COPYING)
 ```

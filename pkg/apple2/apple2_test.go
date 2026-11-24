@@ -423,11 +423,14 @@ func TestLocalImages(t *testing.T) {
 				t.Fatalf("Image does not implement BootDumper")
 			}
 			var bootBuf strings.Builder
-			if err := bd.DumpBoot(&bootBuf); err != nil {
+			if err := bd.DumpBoot(&bootBuf, true); err != nil {
 				t.Fatalf("DumpBoot() failed: %v", err)
 			}
 			if !strings.Contains(bootBuf.String(), tc.bootMatch) {
 				t.Errorf("DumpBoot() output missing %q:\n%s", tc.bootMatch, bootBuf.String())
+			}
+			if !strings.Contains(bootBuf.String(), "Disassembly (") {
+				t.Errorf("DumpBoot(true) output missing Disassembly section:\n%s", bootBuf.String())
 			}
 		})
 	}

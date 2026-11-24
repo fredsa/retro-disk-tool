@@ -621,4 +621,25 @@ func TestRunBootAppleDOS33(t *testing.T) {
 			t.Errorf("boot stdout missing %q; got:\n%s", w, stdout.String())
 		}
 	}
+	if strings.Contains(stdout.String(), "Disassembly") {
+		t.Errorf("boot without -d should not include Disassembly; got:\n%s", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"boot", "-d", path}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(boot -d %s) = %d (stderr: %s)", path, code, stderr.String())
+	}
+	for _, w := range []string{
+		"Disassembly ($0801):",
+		"  0801- A5 27     LDA   $27",
+		"  0803- C9 09     CMP   #$09",
+		"  0805- D0 18     BNE   $081F",
+		"  0836- 6C 3E 00  JMP   ($003E)",
+		"  084A- 6C FD 08  JMP   ($08FD)",
+	} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("boot -d stdout missing %q; got:\n%s", w, stdout.String())
+		}
+	}
 }

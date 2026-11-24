@@ -79,7 +79,7 @@ type Image interface {
 // BootDumper is implemented by Apple II disk images that can dump their boot
 // sector(s) and boot metadata.
 type BootDumper interface {
-	DumpBoot(w io.Writer) error
+	DumpBoot(w io.Writer, disassemble bool) error
 }
 
 // containerImage overrides the image (container) description of a wrapped Image.
@@ -94,9 +94,9 @@ func (c containerImage) Format() *util.FormatInfo {
 	return &f
 }
 
-func (c containerImage) DumpBoot(w io.Writer) error {
+func (c containerImage) DumpBoot(w io.Writer, disassemble bool) error {
 	if bd, ok := c.Image.(BootDumper); ok {
-		return bd.DumpBoot(w)
+		return bd.DumpBoot(w, disassemble)
 	}
 	return fmt.Errorf("boot sector dump is not supported for this disk format")
 }

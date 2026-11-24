@@ -24,7 +24,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  rdt ls [-l] [-r] <file> [<dir>]")
 	fmt.Fprintln(w, "  rdt <file> [<dir>]                (same as rdt ls -l -r)")
 	fmt.Fprintln(w, "  rdt dump <file>")
-	fmt.Fprintln(w, "  rdt boot <file>")
+	fmt.Fprintln(w, "  rdt boot [-d] <file>")
 	fmt.Fprintln(w, "  rdt cat <file> <path>")
 	fmt.Fprintln(w, "  rdt terminal")
 }
@@ -41,7 +41,7 @@ func printDumpHelp(w io.Writer) {
 
 func printBootHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  rdt boot <file>")
+	fmt.Fprintln(w, "  rdt boot [-d] <file>")
 }
 
 func printCatHelp(w io.Writer) {
@@ -432,6 +432,7 @@ func runBoot(args []string, stdout, stderr io.Writer) int {
 	bootFlags.Usage = func() {
 		printBootHelp(stderr)
 	}
+	disassembleFlag := bootFlags.Bool("d", false, "disassemble boot sector code")
 	if err := bootFlags.Parse(args); err != nil {
 		return 1
 	}
@@ -467,7 +468,7 @@ func runBoot(args []string, stdout, stderr io.Writer) int {
 	}
 
 	printFormat(stdout, reader.Format())
-	if err := bd.DumpBoot(stdout); err != nil {
+	if err := bd.DumpBoot(stdout, *disassembleFlag); err != nil {
 		fmt.Fprintf(stderr, "Error dumping boot sector of %q: %v\n", diskPath, err)
 		return 1
 	}

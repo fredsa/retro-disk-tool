@@ -471,7 +471,7 @@ func (p *ProDOSDisk) Dump(w io.Writer) error {
 
 // DumpBoot writes the ProDOS boot block (Block 0, Track 0 Sectors 0-1) and its
 // metadata to w.
-func (p *ProDOSDisk) DumpBoot(w io.Writer) error {
+func (p *ProDOSDisk) DumpBoot(w io.Writer, disassemble bool) error {
 	blk0, err := p.readBlock(0)
 	if err != nil {
 		return fmt.Errorf("failed to read ProDOS boot block 0: %w", err)
@@ -490,6 +490,11 @@ func (p *ProDOSDisk) DumpBoot(w io.Writer) error {
 	}
 	fmt.Fprintln(w)
 	util.HexDump(w, blk0, 0x0800)
+	if disassemble {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Disassembly ($0801):")
+		util.Disassemble6502(w, blk0, 0x0800, 1, len(blk0))
+	}
 	return nil
 }
 

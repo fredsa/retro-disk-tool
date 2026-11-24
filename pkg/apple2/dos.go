@@ -387,7 +387,7 @@ func (d *DOSDisk) Dump(w io.Writer) error {
 
 // DumpBoot writes the Apple DOS boot sector (Track 0, Sector 0) and its
 // metadata to w.
-func (d *DOSDisk) DumpBoot(w io.Writer) error {
+func (d *DOSDisk) DumpBoot(w io.Writer, disassemble bool) error {
 	sec, err := d.readSector(0, 0)
 	if err != nil {
 		return fmt.Errorf("failed to read boot sector (track 0, sector 0): %w", err)
@@ -415,6 +415,11 @@ func (d *DOSDisk) DumpBoot(w io.Writer) error {
 		}
 		fmt.Fprintln(w)
 		util.HexDump(w, boot0[:], 0x0300)
+		if disassemble {
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, "Disassembly ($0301):")
+			util.Disassemble6502(w, boot0[:], 0x0300, 1, 256)
+		}
 		return nil
 	}
 	fmt.Fprintf(w, "  Load address:  $0800 (entry point $0801)\n")
@@ -425,6 +430,11 @@ func (d *DOSDisk) DumpBoot(w io.Writer) error {
 	}
 	fmt.Fprintln(w)
 	util.HexDump(w, sec, 0x0800)
+	if disassemble {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Disassembly ($0801):")
+		util.Disassemble6502(w, sec, 0x0800, 1, 256)
+	}
 	return nil
 }
 

@@ -479,20 +479,28 @@ func (p *ProDOSDisk) DumpBoot(w io.Writer, disassemble bool) error {
 	fmt.Fprintf(w, "Boot Block (Block 0, %d bytes):\n", len(blk0))
 	fmt.Fprintf(w, "  Load address:  $0800 (entry point $0801)\n")
 	fmt.Fprintf(w, "  Sector count:  %d (ROM loads %d sector(s) to $0800)\n", blk0[0], blk0[0])
-	if blk0[0] == 0x01 && blk0[1] == 0x38 && blk0[2] == 0xB0 && blk0[3] == 0x03 {
+	isProDOSBoot := blk0[0] == 0x01 && blk0[1] == 0x38 && blk0[2] == 0xB0 && blk0[3] == 0x03
+	var bootFile string
+	if isProDOSBoot {
 		nameLen := int(blk0[0x102] & 0x0F)
 		if nameLen >= 1 && nameLen <= 15 {
-			bootFile := DecodeAppleBytes(blk0[0x103 : 0x103+nameLen])
+			bootFile = DecodeAppleBytes(blk0[0x103 : 0x103+nameLen])
 			fmt.Fprintf(w, "  Boot loader:   Apple II ProDOS (loads %q to $2000)\n", bootFile)
 		} else {
 			fmt.Fprintf(w, "  Boot loader:   Apple II ProDOS\n")
 		}
 	}
+	fmt.Fprintf(w, "  Special bytes:\n")
+	fmt.Fprintf(w, "    $0800: $%02X - ROM boot sector count (loads %d sector(s) to $0800; entry $0801)\n", blk0[0], blk0[0])
+	if bootFile != "" {
+		fmt.Fprintf(w, "    $0902..$%04X: boot filename (%q, length %d)\n", 0x0902+len(bootFile), bootFile, len(bootFile))
+	}
 	fmt.Fprintln(w)
 	util.HexDump(w, blk0, 0x0800)
 	if disassemble {
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Disassembly ($0801):")
+		fmt.Fprintln(w, "Disassembly ($0800):")
+		fmt.Fprintf(w, "  0800- %02X        .BYTE $%02X        ; ROM boot sector count (loads %d sector(s) to $0800; entry $0801)\n", blk0[0], blk0[0], blk0[0])
 		util.Disassemble6502(w, blk0, 0x0800, 1, len(blk0))
 	}
 	if blk1, err := p.readBlock(1); err == nil {

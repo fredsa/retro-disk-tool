@@ -416,11 +416,18 @@ func (d *DOSDisk) DumpBoot(w io.Writer, disassemble bool) error {
 			fmt.Fprintf(w, "  Boot loader:   Apple DOS 3.1/3.2 Boot0\n")
 			fmt.Fprintf(w, "  Stage 2 load:  $%02X00 (%d sectors from Track 0)\n", stage2Page, stage2Count)
 		}
+		fmt.Fprintf(w, "  Special bytes:\n")
+		fmt.Fprintf(w, "    $0300: $%02X - P5A boot PROM first byte (entry point $0301)\n", boot0[0])
+		if isBoot0 {
+			fmt.Fprintf(w, "    $03CC: $%02X - Stage 2 base load page ($%02X00)\n", boot0[0xCC], boot0[0xCC])
+			fmt.Fprintf(w, "    $03FF: $%02X - Stage 2 end-sector marker\n", boot0[0xFF])
+		}
 		fmt.Fprintln(w)
 		util.HexDump(w, boot0[:], 0x0300)
 		if disassemble {
 			fmt.Fprintln(w)
-			fmt.Fprintln(w, "Disassembly ($0301):")
+			fmt.Fprintln(w, "Disassembly ($0300):")
+			fmt.Fprintf(w, "  0300- %02X        .BYTE $%02X        ; P5A boot PROM first byte (entry $0301)\n", boot0[0], boot0[0])
 			util.Disassemble6502(w, boot0[:], 0x0300, 1, 256)
 		}
 		if isBoot0 {
@@ -449,12 +456,32 @@ func (d *DOSDisk) DumpBoot(w io.Writer, disassemble bool) error {
 		fmt.Fprintf(w, "  Boot loader:   Apple DOS 3.3 Boot1\n")
 		fmt.Fprintf(w, "  Stage 2 load:  $%02X00 (%d additional sectors from Track 0)\n", sec[0xFE], sec[0xFF])
 	}
+	fmt.Fprintf(w, "  Special bytes:\n")
+	fmt.Fprintf(w, "    $0800: $%02X - ROM boot sector count (loads %d sector(s) to $0800; entry $0801)\n", sec[0], sec[0])
+	if isBoot1 {
+		fmt.Fprintf(w, "    $084D..$085C: sector skew table (logical -> physical)\n")
+		fmt.Fprintf(w, "    $08FD..$08FE: $%02X $%02X - Stage 2 base load address ($%02X00) / jump vector\n", sec[0xFD], sec[0xFE], sec[0xFE])
+		fmt.Fprintf(w, "    $08FF: $%02X - Stage 2 sector count (%d additional sectors from Track 0)\n", sec[0xFF], sec[0xFF])
+	}
 	fmt.Fprintln(w)
 	util.HexDump(w, sec, 0x0800)
 	if disassemble {
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Disassembly ($0801):")
-		util.Disassemble6502(w, sec, 0x0800, 1, 256)
+		fmt.Fprintln(w, "Disassembly ($0800):")
+		fmt.Fprintf(w, "  0800- %02X        .BYTE $%02X        ; ROM boot sector count (loads %d sector(s) to $0800; entry $0801)\n", sec[0], sec[0], sec[0])
+		if isBoot1 {
+			util.Disassemble6502(w, sec, 0x0800, 1, 0x4D)
+			fmt.Fprintf(w, "  084D- %02X %02X %02X %02X %02X %02X %02X %02X  ; Sector skew table (logical -> physical)\n",
+				sec[0x4D], sec[0x4E], sec[0x4F], sec[0x50], sec[0x51], sec[0x52], sec[0x53], sec[0x54])
+			fmt.Fprintf(w, "  0855- %02X %02X %02X %02X %02X %02X %02X %02X  ; Sector skew table (continued)\n",
+				sec[0x55], sec[0x56], sec[0x57], sec[0x58], sec[0x59], sec[0x5A], sec[0x5B], sec[0x5C])
+			util.Disassemble6502(w, sec, 0x0800, 0x5D, 0xFD)
+			fmt.Fprintf(w, "  08FD- %02X        .BYTE $%02X        ; Stage 2 jump vector low byte\n", sec[0xFD], sec[0xFD])
+			fmt.Fprintf(w, "  08FE- %02X        .BYTE $%02X        ; Stage 2 base load page ($%02X00)\n", sec[0xFE], sec[0xFE], sec[0xFE])
+			fmt.Fprintf(w, "  08FF- %02X        .BYTE $%02X        ; Stage 2 sector count (%d additional sectors)\n", sec[0xFF], sec[0xFF], sec[0xFF])
+		} else {
+			util.Disassemble6502(w, sec, 0x0800, 1, 256)
+		}
 	}
 
 	if isBoot1 {

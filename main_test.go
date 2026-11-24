@@ -616,6 +616,8 @@ func TestRunBootAppleDOS33(t *testing.T) {
 		"Stage 2 load:  $3600 (9 additional sectors from Track 0)",
 		"  0800: 01 A5 27 C9 09 D0 18 A5  2B 4A 4A 4A 4A 09 C0 85",
 		"  08F0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 36 09",
+		"Boot Sector (Track 0, Sector 1, 256 bytes, load address $3700):",
+		"Boot Sector (Track 0, Sector 9, 256 bytes, load address $3F00):",
 	} {
 		if !strings.Contains(stdout.String(), w) {
 			t.Errorf("boot stdout missing %q; got:\n%s", w, stdout.String())
@@ -637,6 +639,9 @@ func TestRunBootAppleDOS33(t *testing.T) {
 		"  0805- D0 18     BNE   $081F",
 		"  0836- 6C 3E 00  JMP   ($003E)",
 		"  084A- 6C FD 08  JMP   ($08FD)",
+		"Disassembly ($3700):",
+		"  3700- 8E E9 37  STX   $37E9",
+		"Disassembly ($3F00):",
 	} {
 		if !strings.Contains(stdout.String(), w) {
 			t.Errorf("boot -d stdout missing %q; got:\n%s", w, stdout.String())

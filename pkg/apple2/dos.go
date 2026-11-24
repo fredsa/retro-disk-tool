@@ -385,8 +385,8 @@ func (d *DOSDisk) Dump(w io.Writer) error {
 	return nil
 }
 
-// DumpBoot writes the Apple DOS boot sector (Track 0, Sector 0) and its
-// metadata to w.
+// DumpBoot writes all Apple DOS boot sectors (Track 0, Sector 0 and any
+// Stage 2 / multi-sector ROM boot sectors) and their metadata to w.
 func (d *DOSDisk) DumpBoot(w io.Writer, disassemble bool) error {
 	sec, err := d.readSector(0, 0)
 	if err != nil {
@@ -408,10 +408,13 @@ func (d *DOSDisk) DumpBoot(w io.Writer, disassemble bool) error {
 			boot0[204+i] = sec[5*j+4]
 		}
 		boot0[255] = sec[255]
+		isBoot0 := boot0[0] == 0x99 && boot0[1] == 0xB9 && boot0[2] == 0x00 && boot0[3] == 0x08
+		stage2Page := uint16(boot0[0xCC])
+		stage2Count := 9
 		fmt.Fprintf(w, "  Load address:  $0300 (entry point $0301, 13-sector P5A boot PROM)\n")
-		if boot0[0] == 0x99 && boot0[1] == 0xB9 && boot0[2] == 0x00 && boot0[3] == 0x08 {
+		if isBoot0 {
 			fmt.Fprintf(w, "  Boot loader:   Apple DOS 3.1/3.2 Boot0\n")
-			fmt.Fprintf(w, "  Stage 2 load:  $%02X00 (%d sectors from Track 0)\n", boot0[0xCC], int(boot0[0xFF]^boot0[0xCC])+1)
+			fmt.Fprintf(w, "  Stage 2 load:  $%02X00 (%d sectors from Track 0)\n", stage2Page, stage2Count)
 		}
 		fmt.Fprintln(w)
 		util.HexDump(w, boot0[:], 0x0300)
@@ -420,11 +423,29 @@ func (d *DOSDisk) DumpBoot(w io.Writer, disassemble bool) error {
 			fmt.Fprintln(w, "Disassembly ($0301):")
 			util.Disassemble6502(w, boot0[:], 0x0300, 1, 256)
 		}
+		if isBoot0 {
+			for s := 1; s <= stage2Count && s < d.sectorsPerTrack; s++ {
+				s2, err := d.readSector(0, s)
+				if err != nil {
+					return fmt.Errorf("failed to read boot sector (track 0, sector %d): %w", s, err)
+				}
+				base := (stage2Page + uint16(s)) << 8
+				fmt.Fprintf(w, "\nBoot Sector (Track 0, Sector %d, %d bytes, load address $%04X):\n\n", s, len(s2), base)
+				util.HexDump(w, s2, uint32(base))
+				if disassemble {
+					fmt.Fprintln(w)
+					fmt.Fprintf(w, "Disassembly ($%04X):\n", base)
+					util.Disassemble6502(w, s2, base, 0, len(s2))
+				}
+			}
+		}
 		return nil
 	}
+
+	isBoot1 := sec[0] == 0x01 && sec[1] == 0xA5 && sec[2] == 0x27
 	fmt.Fprintf(w, "  Load address:  $0800 (entry point $0801)\n")
 	fmt.Fprintf(w, "  Sector count:  %d (ROM loads %d sector(s) to $0800)\n", sec[0], sec[0])
-	if sec[0] == 0x01 && sec[1] == 0xA5 && sec[2] == 0x27 {
+	if isBoot1 {
 		fmt.Fprintf(w, "  Boot loader:   Apple DOS 3.3 Boot1\n")
 		fmt.Fprintf(w, "  Stage 2 load:  $%02X00 (%d additional sectors from Track 0)\n", sec[0xFE], sec[0xFF])
 	}
@@ -434,6 +455,44 @@ func (d *DOSDisk) DumpBoot(w io.Writer, disassemble bool) error {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "Disassembly ($0801):")
 		util.Disassemble6502(w, sec, 0x0800, 1, 256)
+	}
+
+	if isBoot1 {
+		stage2Page := uint16(sec[0xFE])
+		stage2Count := int(sec[0xFF])
+		for s := 1; s <= stage2Count && s < d.sectorsPerTrack; s++ {
+			s2, err := d.readSector(0, s)
+			if err != nil {
+				return fmt.Errorf("failed to read boot sector (track 0, sector %d): %w", s, err)
+			}
+			base := (stage2Page + uint16(s)) << 8
+			fmt.Fprintf(w, "\nBoot Sector (Track 0, Sector %d, %d bytes, load address $%04X):\n\n", s, len(s2), base)
+			util.HexDump(w, s2, uint32(base))
+			if disassemble {
+				fmt.Fprintln(w)
+				fmt.Fprintf(w, "Disassembly ($%04X):\n", base)
+				util.Disassemble6502(w, s2, base, 0, len(s2))
+			}
+		}
+	} else if sec[0] > 1 {
+		count := int(sec[0])
+		if count > d.sectorsPerTrack {
+			count = d.sectorsPerTrack
+		}
+		for s := 1; s < count; s++ {
+			sn, err := d.readSector(0, s)
+			if err != nil {
+				return fmt.Errorf("failed to read boot sector (track 0, sector %d): %w", s, err)
+			}
+			base := uint16(0x0800) + uint16(s)*256
+			fmt.Fprintf(w, "\nBoot Sector (Track 0, Sector %d, %d bytes, load address $%04X):\n\n", s, len(sn), base)
+			util.HexDump(w, sn, uint32(base))
+			if disassemble {
+				fmt.Fprintln(w)
+				fmt.Fprintf(w, "Disassembly ($%04X):\n", base)
+				util.Disassemble6502(w, sn, base, 0, len(sn))
+			}
+		}
 	}
 	return nil
 }

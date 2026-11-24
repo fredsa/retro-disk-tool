@@ -495,6 +495,15 @@ func (p *ProDOSDisk) DumpBoot(w io.Writer, disassemble bool) error {
 		fmt.Fprintln(w, "Disassembly ($0801):")
 		util.Disassemble6502(w, blk0, 0x0800, 1, len(blk0))
 	}
+	if blk1, err := p.readBlock(1); err == nil {
+		fmt.Fprintf(w, "\nBoot Block (Block 1, %d bytes):\n\n", len(blk1))
+		util.HexDump(w, blk1, 0x0A00)
+		if disassemble {
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, "Disassembly ($0A00):")
+			util.Disassemble6502(w, blk1, 0x0A00, 0, len(blk1))
+		}
+	}
 	return nil
 }
 

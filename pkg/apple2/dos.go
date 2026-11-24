@@ -81,10 +81,20 @@ func (d *DOSDisk) List() ([]DiskEntry, error) {
 			entry := sec[off : off+35]
 			tsTrack := int(entry[0])
 			tsSector := int(entry[1])
-			if tsTrack == 0x00 || tsTrack == 0xFF || entry[32] < 35 {
-				// Unused (0x00) or deleted (0xFF, or original track saved in
-				// entry[32] with tsTrack later overwritten) entry
+			if tsTrack == 0x00 {
+				// Unused (0x00) entry
 				continue
+			}
+
+			deleted := false
+			nameBytes := entry[3:33]
+			if tsTrack == 0xFF || entry[32] < 35 {
+				// Deleted entry: DOS copies the original first T/S list track
+				// into the last byte of the filename (entry[32]) and sets
+				// entry[0] to 0xFF.
+				deleted = true
+				tsTrack = int(entry[32])
+				nameBytes = entry[3:32]
 			}
 
 			rawType := entry[2]
@@ -95,23 +105,24 @@ func (d *DOSDisk) List() ([]DiskEntry, error) {
 				typeStr = "?"
 			}
 
-			name := DecodeAppleBytes(entry[3:33])
+			name := DecodeAppleBytes(nameBytes)
 			sectors := int(binary.LittleEndian.Uint16(entry[33:35]))
 
 			content, readErr := d.readFileContent(tsTrack, tsSector, fileType, sectors)
 			corrupt := false
 			errMsg := ""
-			if readErr != nil {
+			if readErr != nil && !deleted {
 				corrupt = true
 				errMsg = readErr.Error()
 			}
 
 			entries = append(entries, DiskEntry{
 				Name:     name,
-				Native:   dosNameGlyphs(entry[3:33]),
+				Native:   dosNameGlyphs(nameBytes),
 				Size:     uint32(len(content)),
 				ModTime:  nil,
 				Corrupt:  corrupt,
+				Deleted:  deleted,
 				Error:    errMsg,
 				FileType: typeStr,
 				Blocks:   sectors,
@@ -274,6 +285,14 @@ func (d *DOSDisk) ReadFile(targetName string) ([]byte, error) {
 	targetLower := strings.ToLower(targetName)
 	visited := make(map[string]bool)
 
+	type deletedCandidate struct {
+		tsTrack  int
+		tsSector int
+		fileType byte
+		sectors  int
+	}
+	var fallback *deletedCandidate
+
 	for catTrack != 0 {
 		key := fmt.Sprintf("%d/%d", catTrack, catSector)
 		if visited[key] {
@@ -293,20 +312,36 @@ func (d *DOSDisk) ReadFile(targetName string) ([]byte, error) {
 			entry := sec[off : off+35]
 			tsTrack := int(entry[0])
 			tsSector := int(entry[1])
-			if tsTrack == 0x00 || tsTrack == 0xFF || entry[32] < 35 {
+			if tsTrack == 0x00 {
 				continue
 			}
 
 			fileType := entry[2] & 0x7F
-			name := DecodeAppleBytes(entry[3:33])
 			sectors := int(binary.LittleEndian.Uint16(entry[33:35]))
 
+			if tsTrack == 0xFF || entry[32] < 35 {
+				name := DecodeAppleBytes(entry[3:32])
+				if fallback == nil && strings.ToLower(name) == targetLower {
+					fallback = &deletedCandidate{
+						tsTrack:  int(entry[32]),
+						tsSector: tsSector,
+						fileType: fileType,
+						sectors:  sectors,
+					}
+				}
+				continue
+			}
+
+			name := DecodeAppleBytes(entry[3:33])
 			if strings.ToLower(name) == targetLower {
 				return d.readFileContent(tsTrack, tsSector, fileType, sectors)
 			}
 		}
 	}
 
+	if fallback != nil {
+		return d.readFileContent(fallback.tsTrack, fallback.tsSector, fallback.fileType, fallback.sectors)
+	}
 	return nil, fmt.Errorf("file %q not found", targetName)
 }
 
@@ -338,8 +373,12 @@ func (d *DOSDisk) Dump(w io.Writer) error {
 			if e.Locked {
 				lockStr = "*"
 			}
-			fmt.Fprintf(w, "   %s%s %03d %-30s (%d bytes)\n",
-				lockStr, e.FileType, e.Blocks, e.Name, e.Size)
+			delStr := ""
+			if e.Deleted {
+				delStr = " [deleted]"
+			}
+			fmt.Fprintf(w, "   %s%s %03d %-30s (%d bytes)%s\n",
+				lockStr, e.FileType, e.Blocks, e.Name, e.Size, delStr)
 		}
 	}
 

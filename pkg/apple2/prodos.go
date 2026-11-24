@@ -134,8 +134,23 @@ func (p *ProDOSDisk) readDirBlocks(startBlock int) ([]DiskEntry, error) {
 
 			storageType := entry[0] >> 4
 			nameLen := int(entry[0] & 0x0F)
-			if storageType == 0 || nameLen == 0 {
-				// Deleted or unused entry
+			deleted := false
+			if storageType == 0 {
+				// In ProDOS, deleting a file zeroes byte 0 (storageType and
+				// nameLen), leaving the filename characters in entry[1:16].
+				for nameLen < 15 && entry[1+nameLen] != 0 {
+					c := entry[1+nameLen] & 0x7F
+					if c < 0x20 || c > 0x7E {
+						nameLen = 0
+						break
+					}
+					nameLen++
+				}
+				if nameLen == 0 {
+					continue
+				}
+				deleted = true
+			} else if nameLen == 0 {
 				continue
 			}
 
@@ -166,6 +181,7 @@ func (p *ProDOSDisk) readDirBlocks(startBlock int) ([]DiskEntry, error) {
 				IsDir:    isDir,
 				Size:     size,
 				ModTime:  modTime,
+				Deleted:  deleted,
 				FileType: typeStr,
 				Blocks:   blocksUsed,
 				Locked:   (access & 0x02) == 0, // Write-disabled
@@ -442,8 +458,12 @@ func (p *ProDOSDisk) Dump(w io.Writer) error {
 			if e.Locked {
 				lockStr = "*"
 			}
-			fmt.Fprintf(w, "   %s%-16s %-3s %4d blocks (%d bytes)\n",
-				lockStr, e.Name, e.FileType, e.Blocks, e.Size)
+			delStr := ""
+			if e.Deleted {
+				delStr = " [deleted]"
+			}
+			fmt.Fprintf(w, "   %s%-16s %-3s %4d blocks (%d bytes)%s\n",
+				lockStr, e.Name, e.FileType, e.Blocks, e.Size, delStr)
 		}
 	}
 	return nil

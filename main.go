@@ -277,7 +277,9 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 		}
 		if *longFlag {
 			typeIndicator := "-"
-			if entry.Corrupt {
+			if entry.Deleted {
+				typeIndicator = "del"
+			} else if entry.Corrupt {
 				typeIndicator = "?"
 			} else if entry.IsDir {
 				typeIndicator = "d"
@@ -301,7 +303,11 @@ func runLs(args []string, stdout, stderr io.Writer) int {
 				fmt.Fprintf(stdout, "  %-4s %8d %s %s\n", typeIndicator, entry.Size, timeStr, displayName)
 			}
 		} else {
-			fmt.Fprintf(stdout, "  %s\n", formatFilename(entry.Name))
+			if entry.Deleted {
+				fmt.Fprintf(stdout, "  %s (deleted)\n", formatFilename(entry.Name))
+			} else {
+				fmt.Fprintf(stdout, "  %s\n", formatFilename(entry.Name))
+			}
 		}
 	}
 

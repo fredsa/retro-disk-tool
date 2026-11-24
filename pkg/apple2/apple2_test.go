@@ -134,11 +134,14 @@ func TestDOS31MasterNIB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List() failed: %v", err)
 	}
-	if len(entries) != 8 {
-		t.Fatalf("len(entries) = %d, want 8", len(entries))
+	if len(entries) != 9 {
+		t.Fatalf("len(entries) = %d, want 9", len(entries))
 	}
 	if entries[1].Name != "APPLESOFT" || entries[1].Size != 10704 {
 		t.Errorf("entries[1] = %+v, want APPLESOFT (10704 bytes)", entries[1])
+	}
+	if entries[8].Name != "HELLO" || !entries[8].Deleted {
+		t.Errorf("entries[8] = %+v, want deleted HELLO", entries[8])
 	}
 
 	usage, err := img.Usage()
@@ -177,14 +180,20 @@ func TestDOS32SystemMasterWOZ(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List() failed: %v", err)
 	}
-	if len(entries) != 14 {
-		t.Fatalf("len(entries) = %d, want 14", len(entries))
+	if len(entries) != 16 {
+		t.Fatalf("len(entries) = %d, want 16", len(entries))
 	}
 	if entries[0].Name != "HELLO" || entries[0].Size != 138 {
 		t.Errorf("entries[0] = %+v, want HELLO (138 bytes)", entries[0])
 	}
 	if entries[13].Name != "PINBALL" || entries[13].Size != 6629 {
 		t.Errorf("entries[13] = %+v, want PINBALL (6629 bytes)", entries[13])
+	}
+	if entries[14].Name != "THE INFINITE NO. OF MONKEYS" || !entries[14].Deleted {
+		t.Errorf("entries[14] = %+v, want deleted THE INFINITE NO. OF MONKEYS", entries[14])
+	}
+	if entries[15].Name != "RENUMBER" || !entries[15].Deleted {
+		t.Errorf("entries[15] = %+v, want deleted RENUMBER", entries[15])
 	}
 
 	usage, err := img.Usage()
@@ -337,7 +346,7 @@ func TestLocalImages(t *testing.T) {
 			name:      "DOS 3.2 System Master.woz",
 			fs:        "Apple DOS 3.2",
 			label:     "DISK VOLUME 254",
-			numFiles:  14,
+			numFiles:  16,
 			inUse:     452,
 			free:      3,
 			bootMatch: "Apple DOS 3.1/3.2 Boot0",
@@ -346,7 +355,7 @@ func TestLocalImages(t *testing.T) {
 			name:      "dos33.dsk",
 			fs:        "Apple DOS 3.3",
 			label:     "DISK VOLUME 1",
-			numFiles:  19,
+			numFiles:  20,
 			inUse:     277,
 			free:      283,
 			bootMatch: "Apple DOS 3.3 Boot1",
@@ -390,6 +399,12 @@ func TestLocalImages(t *testing.T) {
 					t.Errorf("ReadFile(%q) failed: %v", e.Name, err)
 				} else if uint32(len(data)) != e.Size {
 					t.Errorf("ReadFile(%q) len = %d, want %d", e.Name, len(data), e.Size)
+				}
+			}
+			if tc.name == "dos33.dsk" {
+				last := entries[len(entries)-1]
+				if last.Name != "GIRL2" || !last.Deleted || last.Size != 8195 {
+					t.Errorf("dos33.dsk last entry = %+v, want deleted GIRL2 (8195 bytes)", last)
 				}
 			}
 			u, err := img.Usage()

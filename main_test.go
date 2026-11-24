@@ -365,6 +365,27 @@ func TestRunLsApple(t *testing.T) {
 	if code := run([]string{"cat", testimages.Path(t, "apple", "Apple DOS 3.1 Master.d13"), "COPY"}, &stdout, &stderr); code != 0 || stdout.Len() != 1407 {
 		t.Errorf("cat COPY = code %d, %d bytes; want 1407", code, stdout.Len())
 	}
+
+	// Deleted file in dos33.dsk is displayed with "del" in ls -l, "(deleted)" in ls, and "[deleted]" in dump.
+	dos33Path := testimages.Path(t, "apple", "dos33.dsk")
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"ls", "-l", dos33Path}, &stdout, &stderr); code != 0 ||
+		!strings.Contains(stdout.String(), "  del      8195                     GIRL2\n") {
+		t.Errorf("ls -l dos33.dsk missing deleted GIRL2; got:\n%s", stdout.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"ls", dos33Path}, &stdout, &stderr); code != 0 ||
+		!strings.Contains(stdout.String(), "  GIRL2 (deleted)\n") {
+		t.Errorf("ls dos33.dsk missing GIRL2 (deleted); got:\n%s", stdout.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"dump", dos33Path}, &stdout, &stderr); code != 0 ||
+		!strings.Contains(stdout.String(), "B 034 GIRL2                          (8195 bytes) [deleted]\n") {
+		t.Errorf("dump dos33.dsk missing GIRL2 [deleted]; got:\n%s", stdout.String())
+	}
 }
 
 // TestRunCRT uses an EasyFlash cartridge image downloaded into images/c64.

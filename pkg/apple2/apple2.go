@@ -39,6 +39,7 @@ type DiskEntry struct {
 	Size    uint32
 	ModTime *time.Time
 	Corrupt bool
+	Deleted bool
 	Error   string
 	// Native is the platform specific rendering of the name (inverse /
 	// flashing styles for Apple DOS 3.x).

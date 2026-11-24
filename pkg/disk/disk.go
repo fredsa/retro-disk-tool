@@ -28,6 +28,7 @@ type Entry struct {
 	// DateOnly is set when ModTime has a date but no time of day.
 	DateOnly bool
 	Corrupt  bool
+	Deleted  bool
 	Error    string
 	// Native is the platform specific rendering of Name (nil if the
 	// platform has no distinct rendering).
@@ -468,6 +469,7 @@ func (a *apple2Adapter) List() ([]Entry, error) {
 			Size:    e.Size,
 			ModTime: e.ModTime,
 			Corrupt: e.Corrupt,
+			Deleted: e.Deleted,
 			Error:   e.Error,
 			Native:  e.Native,
 		}

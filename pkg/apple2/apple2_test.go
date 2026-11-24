@@ -277,3 +277,143 @@ func TestUnsupportedFilesystems(t *testing.T) {
 		}
 	}
 }
+
+func TestLocalImages(t *testing.T) {
+	cases := []struct {
+		name      string
+		fs        string
+		label     string
+		numFiles  int
+		inUse     int
+		free      int
+		bootMatch string
+	}{
+		{
+			name:      "apple2.appledos.114/Apple DOS 3.1 Master.d13",
+			fs:        "Apple DOS 3.1",
+			label:     "DISK VOLUME 254",
+			numFiles:  8,
+			inUse:     179,
+			free:      276,
+			bootMatch: "Apple DOS 3.1/3.2 Boot0",
+		},
+		{
+			name:      "apple2.appledos.140/Apple DOS 3.3 August 1980.dsk",
+			fs:        "Apple DOS 3.3",
+			label:     "DISK VOLUME 254",
+			numFiles:  29,
+			inUse:     513,
+			free:      47,
+			bootMatch: "Apple DOS 3.3 Boot1",
+		},
+		{
+			name:      "apple2.prodos.140/ProDOS_2_4_3.po",
+			fs:        "ProDOS",
+			label:     "/PRODOS.2.4.3",
+			numFiles:  17,
+			inUse:     508,
+			free:      52,
+			bootMatch: `Apple II ProDOS (loads "PRODOS" to $2000)`,
+		},
+		{
+			name:      "aptestdos.do",
+			fs:        "Apple DOS 3.3",
+			label:     "DISK VOLUME 254",
+			numFiles:  1,
+			inUse:     74,
+			free:      486,
+			bootMatch: "Apple DOS 3.3 Boot1",
+		},
+		{
+			name:      "DOS 3.1 Master.nib",
+			fs:        "Apple DOS 3.1",
+			label:     "DISK VOLUME 254",
+			numFiles:  8,
+			inUse:     179,
+			free:      276,
+			bootMatch: "Apple DOS 3.1/3.2 Boot0",
+		},
+		{
+			name:      "DOS 3.2 System Master.woz",
+			fs:        "Apple DOS 3.2",
+			label:     "DISK VOLUME 254",
+			numFiles:  14,
+			inUse:     452,
+			free:      3,
+			bootMatch: "Apple DOS 3.1/3.2 Boot0",
+		},
+		{
+			name:      "dos33.dsk",
+			fs:        "Apple DOS 3.3",
+			label:     "DISK VOLUME 1",
+			numFiles:  19,
+			inUse:     277,
+			free:      283,
+			bootMatch: "Apple DOS 3.3 Boot1",
+		},
+		{
+			name:      "pong.dsk",
+			fs:        "Apple DOS 3.3",
+			label:     "DISK VOLUME 254",
+			numFiles:  8,
+			inUse:     165,
+			free:      395,
+			bootMatch: "Apple DOS 3.3 Boot1",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			img, err := openImage(t, tc.name)
+			if err != nil {
+				t.Fatalf("openImage(%q) failed: %v", tc.name, err)
+			}
+			if f := img.Format(); f.Filesystem != tc.fs {
+				t.Errorf("Format().Filesystem = %q, want %q", f.Filesystem, tc.fs)
+			}
+			if hdr := img.Header(); hdr == nil || hdr.Name != tc.label {
+				t.Errorf("Header() = %+v, want Name=%q", hdr, tc.label)
+			}
+			entries, err := img.List()
+			if err != nil {
+				t.Fatalf("List() failed: %v", err)
+			}
+			if len(entries) != tc.numFiles {
+				t.Errorf("len(entries) = %d, want %d", len(entries), tc.numFiles)
+			}
+			for _, e := range entries {
+				if e.Corrupt {
+					t.Errorf("corrupt entry %q: %s", e.Name, e.Error)
+				}
+				data, err := img.ReadFile(e.Name)
+				if err != nil {
+					t.Errorf("ReadFile(%q) failed: %v", e.Name, err)
+				} else if uint32(len(data)) != e.Size {
+					t.Errorf("ReadFile(%q) len = %d, want %d", e.Name, len(data), e.Size)
+				}
+			}
+			u, err := img.Usage()
+			if err != nil {
+				t.Fatalf("Usage() failed: %v", err)
+			}
+			if u.InUseSectors != tc.inUse || u.FreeSectors != tc.free {
+				t.Errorf("Usage() InUse=%d Free=%d, want InUse=%d Free=%d", u.InUseSectors, u.FreeSectors, tc.inUse, tc.free)
+			}
+			var dumpBuf strings.Builder
+			if err := img.Dump(&dumpBuf); err != nil {
+				t.Errorf("Dump() failed: %v", err)
+			}
+			bd, ok := img.(apple2.BootDumper)
+			if !ok {
+				t.Fatalf("Image does not implement BootDumper")
+			}
+			var bootBuf strings.Builder
+			if err := bd.DumpBoot(&bootBuf); err != nil {
+				t.Fatalf("DumpBoot() failed: %v", err)
+			}
+			if !strings.Contains(bootBuf.String(), tc.bootMatch) {
+				t.Errorf("DumpBoot() output missing %q:\n%s", tc.bootMatch, bootBuf.String())
+			}
+		})
+	}
+}

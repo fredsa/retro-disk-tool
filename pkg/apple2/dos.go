@@ -81,8 +81,9 @@ func (d *DOSDisk) List() ([]DiskEntry, error) {
 			entry := sec[off : off+35]
 			tsTrack := int(entry[0])
 			tsSector := int(entry[1])
-			if tsTrack == 0x00 || tsTrack == 0xFF {
-				// Unused (0x00) or deleted (0xFF) entry
+			if tsTrack == 0x00 || tsTrack == 0xFF || entry[32] < 35 {
+				// Unused (0x00) or deleted (0xFF, or original track saved in
+				// entry[32] with tsTrack later overwritten) entry
 				continue
 			}
 
@@ -292,7 +293,7 @@ func (d *DOSDisk) ReadFile(targetName string) ([]byte, error) {
 			entry := sec[off : off+35]
 			tsTrack := int(entry[0])
 			tsSector := int(entry[1])
-			if tsTrack == 0x00 || tsTrack == 0xFF {
+			if tsTrack == 0x00 || tsTrack == 0xFF || entry[32] < 35 {
 				continue
 			}
 
@@ -353,6 +354,30 @@ func (d *DOSDisk) DumpBoot(w io.Writer) error {
 		return fmt.Errorf("failed to read boot sector (track 0, sector 0): %w", err)
 	}
 	fmt.Fprintf(w, "Boot Sector (Track 0, Sector 0, %d bytes):\n", len(sec))
+	if d.sectorsPerTrack == 13 {
+		// On 13-sector disks, the P5A controller ROM decodes the 5-and-3 GCR
+		// nibbles of Track 0, Sector 0 directly into $0300..$03FF without the
+		// RWTS post-decode interleave used by standard data sectors. Undo the
+		// 5-way interleave so the sector is shown as loaded at $0300.
+		var boot0 [256]byte
+		for j := 0; j < 51; j++ {
+			i := 50 - j
+			boot0[i] = sec[5*j+0]
+			boot0[51+i] = sec[5*j+1]
+			boot0[102+i] = sec[5*j+2]
+			boot0[153+i] = sec[5*j+3]
+			boot0[204+i] = sec[5*j+4]
+		}
+		boot0[255] = sec[255]
+		fmt.Fprintf(w, "  Load address:  $0300 (entry point $0301, 13-sector P5A boot PROM)\n")
+		if boot0[0] == 0x99 && boot0[1] == 0xB9 && boot0[2] == 0x00 && boot0[3] == 0x08 {
+			fmt.Fprintf(w, "  Boot loader:   Apple DOS 3.1/3.2 Boot0\n")
+			fmt.Fprintf(w, "  Stage 2 load:  $%02X00 (%d sectors from Track 0)\n", boot0[0xCC], int(boot0[0xFF]^boot0[0xCC])+1)
+		}
+		fmt.Fprintln(w)
+		util.HexDump(w, boot0[:], 0x0300)
+		return nil
+	}
 	fmt.Fprintf(w, "  Load address:  $0800 (entry point $0801)\n")
 	fmt.Fprintf(w, "  Sector count:  %d (ROM loads %d sector(s) to $0800)\n", sec[0], sec[0])
 	if sec[0] == 0x01 && sec[1] == 0xA5 && sec[2] == 0x27 {
